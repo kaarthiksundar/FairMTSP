@@ -4,6 +4,9 @@
 package FairMTSP
 
 class App {
+    /*
+    @param greeting variable with a getter function
+     */
     val greeting: String
         get() {
             return "Hello World!"
