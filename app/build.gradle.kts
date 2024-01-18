@@ -39,13 +39,16 @@ dependencies {
     // Graphs
     implementation("org.jgrapht:jgrapht-core:1.5.1")
 
+    // CPLEX
+    val cplexJarPath: String by project
+    implementation(files(cplexJarPath))
+
     // JSON serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.0")
 
     // --- Logging ---
-    // Kotlin logging with slf4j API and log4j logger
-    // Note: slf4j comes as part of Spring core
-    implementation("io.github.microutils:kotlin-logging:1.12.5")
+    implementation("org.slf4j:slf4j-log4j12:2.0.11")
+    implementation("io.github.oshai:kotlin-logging-jvm:6.0.3")
 
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.4.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.0")
@@ -65,7 +68,7 @@ testing {
 
 application {
     // Define the main class for the application.
-    mainClass.set("FairMTSP.AppKt")
+    mainClass.set("fairMTSP.main.AppKt")
 }
 
 tasks {
@@ -81,6 +84,17 @@ tasks {
         reports {
             xml.required.set(true)
         }
+    }
+
+    val cplexLibPath: String by project
+    val args = listOf(
+        "-Xms32m",
+        "-Xmx22g",
+        "-Djava.library.path=$cplexLibPath"
+    )
+
+    withType<JavaExec> {
+        jvmArgs = args
     }
 
 }
