@@ -9,7 +9,7 @@
 
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
-    id("org.jetbrains.kotlin.jvm") version "1.9.10"
+    id("org.jetbrains.kotlin.jvm") version "1.9.20"
 
     // Apply the application plugin to add support for building a CLI application in Java.
     application
@@ -30,7 +30,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.10")
 
     // This dependency is used by the application.
-    implementation("com.google.guava:guava:30.1.1-jre")
+    implementation("com.google.guava:guava:32.0.0-android")
 
     // --- Development ---
     // Command line argument parsing
@@ -39,33 +39,29 @@ dependencies {
     // Graphs
     implementation("org.jgrapht:jgrapht-core:1.5.1")
 
+    // CPLEX
+    val cplexJarPath : String by project
+//    val cplexJarPath = "/Users/kaarthik/Applications/CPLEX_Studio1210/cplex/lib/cplex.jar"
+    implementation(files(cplexJarPath))
+
     // JSON serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.0")
 
     // --- Logging ---
-    // Kotlin logging with slf4j API and log4j logger
-    // Note: slf4j comes as part of Spring core
-    implementation("io.github.microutils:kotlin-logging:1.12.5")
+    implementation("io.github.oshai:kotlin-logging-jvm:6.0.3")
+    implementation("org.slf4j:slf4j-simple:2.0.3")
 
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.4.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.0")
     implementation(kotlin("stdlib-common"))
     implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.4")
+    testImplementation(kotlin("test"))
 }
 
-testing {
-    suites {
-        // Configure the built-in test suite
-        val test by getting(JvmTestSuite::class) {
-            // Use Kotlin Test test framework
-            useKotlinTest()
-        }
-    }
-}
 
 application {
     // Define the main class for the application.
-    mainClass.set("FairMTSP.AppKt")
+    mainClass.set("fairMTSP.main.AppKt")
 }
 
 tasks {
@@ -83,10 +79,25 @@ tasks {
         }
     }
 
+    val cplexLibPath: String by project
+    val args = listOf(
+        "-Xms32m",
+        "-Xmx22g",
+        "-Djava.library.path=$cplexLibPath"
+    )
+
+    withType<JavaExec> {
+        jvmArgs = args
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+
 }
 
 jacoco {
-    toolVersion = "0.8.8"
-    reportsDirectory.set(layout.buildDirectory.dir("jacocoTestReports"))
+    toolVersion = "0.8.9"
+    reportsDirectory = layout.buildDirectory.dir("jacocoTestReports")
 }
 
