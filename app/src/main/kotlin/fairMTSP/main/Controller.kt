@@ -3,6 +3,7 @@ package fairMTSP.main
 import fairMTSP.data.Instance
 import fairMTSP.data.InstanceDto
 import fairMTSP.data.Parameters
+import fairMTSP.solver.BranchAndCutSolver
 import ilog.cplex.IloCplex
 import io.github.oshai.kotlinlogging.KotlinLogging
 
@@ -10,7 +11,7 @@ private val log = KotlinLogging.logger{}
 
 class Controller{
     private lateinit var instance: Instance
-//    private lateinit var cplex: IloCplex
+    private lateinit var cplex: IloCplex
     private lateinit var resultsPath: String
     private val results = sortedMapOf<String, Any>()
 
@@ -31,12 +32,14 @@ class Controller{
     /*
     Initialize CPLEX container
      */
-//    fun initCPLEX() {
-//        cplex = IloCplex()
-//    }
+    fun initCPLEX() {
+        cplex = IloCplex()
+    }
 
-
-
+    private fun clearCPLEX(){
+        cplex.clearModel()
+        cplex.end()
+    }
 
     /* Function to populate the instance*/
     fun populateInstance() {
@@ -46,13 +49,17 @@ class Controller{
             Parameters.numVehicles
         ).getInstance()
 
-        val g = instance.graph
-
-        val edgeVal = g.edgeSet().associateWith { if (g.getEdgeSource(it) == instance.depot) {2.0} else {1.0} }
-        log.info { edgeVal }
-//        for (edge in g.edgeSet() ) {
-//            log.info { g.getEdgeSource(edge) }
-//        }
-
     }
+
+    fun run() {
+        runBranchAndCut()
+    }
+
+    private fun runBranchAndCut() {
+        log.info { "algorithm: branch and cut" }
+        initCPLEX()
+        val solver = BranchAndCutSolver(instance, cplex)
+        solver.solve()
+    }
+
 }

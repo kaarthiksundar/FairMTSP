@@ -19,5 +19,5 @@ fun main(args: Array<String>) {
     val controller = Controller()
     controller.parseArgs(args)
     controller.populateInstance()
-    println(App().greeting)
+    controller.run()
 }
