@@ -2,11 +2,8 @@ package fairMTSP.data
 
 import fairMTSP.main.Graph
 
-//import org.jgrapht.Graph
-//import fairMTSP.main.Graph
-
-class Instance (
-    val graph: Graph
-) {
-    fun sayHello(greet: String): String = "Hello"
-}
+data class Instance(
+    val graph: Graph,
+    val numVehicles: Int,
+    val depot: Int = 0
+)

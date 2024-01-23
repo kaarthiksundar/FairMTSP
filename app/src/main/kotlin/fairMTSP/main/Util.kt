@@ -8,6 +8,8 @@ import org.jgrapht.graph.SimpleWeightedGraph
  */
 class OrienteeringException(message: String) : Exception(message)
 
+data class Coords(val x: Double, val y: Double)
+
 typealias Graph = SimpleWeightedGraph<Int, DefaultWeightedEdge>
 
 fun Graph.numVertices() = this.vertexSet().size
