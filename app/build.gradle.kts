@@ -10,6 +10,7 @@
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
     id("org.jetbrains.kotlin.jvm") version "1.9.20"
+    kotlin("plugin.serialization") version "1.9.22"
 
     // Apply the application plugin to add support for building a CLI application in Java.
     application
@@ -40,12 +41,12 @@ dependencies {
     implementation("org.jgrapht:jgrapht-core:1.5.1")
 
     // CPLEX
-    val cplexJarPath : String by project
+    val cplexJarPath: String by project
 //    val cplexJarPath = "/Users/kaarthik/Applications/CPLEX_Studio1210/cplex/lib/cplex.jar"
     implementation(files(cplexJarPath))
 
     // JSON serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
     // --- Logging ---
     implementation("io.github.oshai:kotlin-logging-jvm:6.0.3")
@@ -56,6 +57,11 @@ dependencies {
     implementation(kotlin("stdlib-common"))
     implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.4")
     testImplementation(kotlin("test"))
+
+//    // Jackson library to work with JSON/YAML.
+//    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.12.0")
+//    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.11.0")
+
 }
 
 

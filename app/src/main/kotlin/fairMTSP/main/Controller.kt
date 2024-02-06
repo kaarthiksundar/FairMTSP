@@ -6,14 +6,17 @@ import fairMTSP.data.Parameters
 import fairMTSP.solver.BranchAndCutSolver
 import ilog.cplex.IloCplex
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
+import java.io.File
 
-private val log = KotlinLogging.logger{}
+private val log = KotlinLogging.logger {}
 
-class Controller{
+class Controller {
     private lateinit var instance: Instance
     private lateinit var cplex: IloCplex
-    private lateinit var resultsPath: String
     private val results = sortedMapOf<String, Any>()
+    private lateinit var outputFile: String
 
     /*
     Parses [args], the given command-line arguments
@@ -21,14 +24,19 @@ class Controller{
     fun parseArgs(args: Array<String>) {
         val parser = CliParser()
         parser.main(args)
-        resultsPath = parser.outputPath
+        outputFile = parser.outputPath + parser.instanceName.split('.').first() +
+                "-v-${parser.numVehicles}-${parser.objectiveType}.json"
 
         Parameters.initialize(
             instanceName = parser.instanceName,
             instancePath = parser.instancePath,
-            numVehicles = parser.numVehicles
+            numVehicles = parser.numVehicles,
+            objectiveType = parser.objectiveType,
+            fairness = parser.fairness,
+            outputFile = outputFile
         )
     }
+
     /*
     Initialize CPLEX container
      */
@@ -36,7 +44,7 @@ class Controller{
         cplex = IloCplex()
     }
 
-    private fun clearCPLEX(){
+    private fun clearCPLEX() {
         cplex.clearModel()
         cplex.end()
     }
@@ -52,14 +60,18 @@ class Controller{
     }
 
     fun run() {
-        runBranchAndCut()
+        val branchCut = runBranchAndCut()
     }
 
     private fun runBranchAndCut() {
         log.info { "algorithm: branch and cut" }
         initCPLEX()
-        val solver = BranchAndCutSolver(instance, cplex)
+        val solver = BranchAndCutSolver(instance, cplex, Parameters.objectiveType, Parameters.fairness)
         solver.solve()
+        val result = solver.getResult()
+        val json = prettyJson.encodeToString(result)
+        File(outputFile).writeText(json)
     }
+
 
 }
