@@ -35,8 +35,9 @@ class FairMTSPCallback(
 
     override fun invoke(context: IloCplex.Callback.Context) {
         if (context.inRelaxation()) {
-            heuristicCallback(context)
-            userSubTourEli(context)
+            log.debug { "In User Callback" }
+//            heuristicCallback(context)
+//            userSubTourEli(context)
         }
         if (context.inCandidate()) {
             lazySubTourEli(context)
@@ -218,6 +219,8 @@ class FairMTSPCallback(
     private fun getProjectionPoints(li: Double, ki: Double, leps_: Double): List<List<Double>> {
         val projectionPoints: MutableList<List<Double>> = mutableListOf()
         projectionPoints.add(listOf(sqrt(ki * leps_), ki, leps_))
+        if (leps_ > 1e-3) projectionPoints.add(listOf(li, li.pow(2) / leps_, leps_))
+        if (ki > 1e-3) projectionPoints.add(listOf(li, ki, li.pow(2) / ki))
 
         return projectionPoints
     }

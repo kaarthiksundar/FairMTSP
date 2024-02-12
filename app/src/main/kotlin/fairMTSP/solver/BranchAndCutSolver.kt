@@ -286,9 +286,9 @@ class BranchAndCutSolver(
             val activeVertices = y[vehicle]!!.filter { cplex.getValue(it.value) > 0.9 }.keys.toList()
             val isVisitedVertex = activeVertices.associateWith { false }.toMutableMap()
             val isVisitedEdge = activeEdges.associateWith { false }.toMutableMap()
-            val tour = mutableListOf(0)
-            var currentVertex = 0
-            isVisitedVertex[0] = true
+            val tour = mutableListOf(instance.depot)
+            var currentVertex = instance.depot
+            isVisitedVertex[instance.depot] = true
             if (activeVertices.size > 1) {
                 for (i in 1..activeVertices.size) {
                     val incidentEdges = activeEdges.filter {
@@ -319,7 +319,8 @@ class BranchAndCutSolver(
             tours = tours.values.toList(),
             tourCost = (0 until instance.numVehicles).map { cplex.getValue(l[it]!!) },
             objectiveValue = cplex.objValue,
-            computationTimeInSec = round(computationTime * 100.0) / 100.0
+            computationTimeInSec = round(computationTime * 100.0) / 100.0,
+            fairness = fairness
         )
         return result
     }

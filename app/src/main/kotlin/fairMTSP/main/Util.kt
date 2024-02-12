@@ -15,6 +15,8 @@ data class Coords(val x: Double, val y: Double)
 
 typealias Graph = SimpleWeightedGraph<Int, DefaultWeightedEdge>
 
+typealias VertexType = ULong
+
 fun Graph.numVertices() = this.vertexSet().size
 
 val prettyJson = Json { // this returns the JsonBuilder

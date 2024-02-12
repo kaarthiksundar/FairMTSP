@@ -16,7 +16,7 @@ class CliParser : CliktCommand() {
     val instanceName: String by option(
         "-n",
         help = "instance name"
-    ).default("bays29.tsp").validate {
+    ).default("seattle.tsp").validate {
         require(it.endsWith(".tsp")) {
             "provide a TSPLIB instance that ends in .tsp"
         }
@@ -43,7 +43,7 @@ class CliParser : CliktCommand() {
     val objectiveType: String by option(
         "-obj",
         help = "type of objective"
-    ).default("fair").validate {
+    ).default("min-max").validate {
         require(it in arrayOf("min", "min-max", "fair")) {
             "objectiveType should be min, min-max or fair"
         }

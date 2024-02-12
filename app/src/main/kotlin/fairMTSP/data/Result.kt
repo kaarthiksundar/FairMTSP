@@ -10,9 +10,10 @@ data class Result(
     val depot: Int,
     val numVehicles: Int,
     val objectiveType: String,
-    val vertexCoords: List<Coords>,
+    val vertexCoords: Map<Int, Coords>,
     val tours: List<List<Int>>,
     val tourCost: List<Double>,
     val objectiveValue: Double,
-    val computationTimeInSec: Double
+    val computationTimeInSec: Double,
+    val fairness: Double
 )
