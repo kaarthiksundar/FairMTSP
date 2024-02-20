@@ -11,9 +11,10 @@ data class Result(
     val numVehicles: Int,
     val objectiveType: String,
     val vertexCoords: Map<Int, Coords>,
-    val tours: List<List<Int>>,
-    val tourCost: List<Double>,
-    val objectiveValue: Double,
+    val tours: List<List<Int>>? = null,
+    val tourCost: List<Double>? = null,
+    val objectiveValue: Double? = null,
     val computationTimeInSec: Double,
-    val fairness: Double
+    val fairnessCoefficient: Double,
+    val optimalityGapPercent: Double? = null
 )

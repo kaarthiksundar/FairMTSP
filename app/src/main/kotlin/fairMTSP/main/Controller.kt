@@ -6,7 +6,6 @@ import fairMTSP.data.Parameters
 import fairMTSP.solver.BranchAndCutSolver
 import ilog.cplex.IloCplex
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import java.io.File
 
@@ -32,15 +31,16 @@ class Controller {
             instancePath = parser.instancePath,
             numVehicles = parser.numVehicles,
             objectiveType = parser.objectiveType,
-            fairness = parser.fairness,
-            outputFile = outputFile
+            fairnessCoefficient = parser.fairnessCoefficient,
+            outputFile = outputFile,
+            timeLimitInSeconds = parser.timeLimitInSeconds
         )
     }
 
     /*
     Initialize CPLEX container
      */
-    fun initCPLEX() {
+    private fun initCPLEX() {
         cplex = IloCplex()
     }
 
@@ -60,18 +60,17 @@ class Controller {
     }
 
     fun run() {
-        val branchCut = runBranchAndCut()
-    }
-
-    private fun runBranchAndCut() {
         log.info { "algorithm: branch and cut" }
         initCPLEX()
-        val solver = BranchAndCutSolver(instance, cplex, Parameters.objectiveType, Parameters.fairness)
-        solver.solve()
-        val result = solver.getResult()
-        val json = prettyJson.encodeToString(result)
-        File(outputFile).writeText(json)
+        val solver = BranchAndCutSolver(instance, cplex, Parameters)
+        try {
+            val result = solver.solve()
+            val json = prettyJson.encodeToString(result)
+            File(outputFile).writeText(json)
+        } catch (e: FairMTSPException) {
+            val result = solver.getInfeasibleResult()
+            val json = prettyJson.encodeToString(result)
+            File(outputFile).writeText(json)
+        }
     }
-
-
 }

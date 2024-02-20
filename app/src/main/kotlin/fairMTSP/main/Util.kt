@@ -1,5 +1,6 @@
 package fairMTSP.main
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.jgrapht.graph.DefaultWeightedEdge
@@ -19,8 +20,10 @@ typealias VertexType = ULong
 
 fun Graph.numVertices() = this.vertexSet().size
 
+@OptIn(ExperimentalSerializationApi::class)
 val prettyJson = Json { // this returns the JsonBuilder
     prettyPrint = true
     // optional: specify indent
     prettyPrintIndent = " "
+    explicitNulls = true
 }

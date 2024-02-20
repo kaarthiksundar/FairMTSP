@@ -17,23 +17,27 @@ object Parameters {
     var outputFile: String = ""
         private set
 
-    var fairness: Double = 1.0
+    var fairnessCoefficient: Double = 1.0
+        private set
 
+    var timeLimitInSeconds: Double = 3600.0
+        private set
 
     fun initialize(
         instanceName: String,
         instancePath: String,
         numVehicles: Int,
         objectiveType: String,
-        fairness: Double,
-        outputFile: String
+        fairnessCoefficient: Double,
+        outputFile: String,
+        timeLimitInSeconds: Double
     ) {
         Parameters.instanceName = instanceName
         Parameters.instancePath = instancePath
         Parameters.numVehicles = numVehicles
         Parameters.objectiveType = objectiveType
-        Parameters.fairness = fairness
+        Parameters.fairnessCoefficient = fairnessCoefficient
         Parameters.outputFile = outputFile
-
+        Parameters.timeLimitInSeconds = timeLimitInSeconds
     }
 }

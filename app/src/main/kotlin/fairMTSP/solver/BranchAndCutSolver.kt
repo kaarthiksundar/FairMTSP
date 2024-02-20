@@ -1,8 +1,10 @@
 package fairMTSP.solver
 
 import fairMTSP.data.Instance
+import fairMTSP.data.Parameters
 import fairMTSP.main.Graph
 import fairMTSP.data.Result
+import fairMTSP.main.FairMTSPException
 import fairMTSP.main.numVertices
 import ilog.concert.IloIntVar
 import ilog.concert.IloLinearNumExpr
@@ -19,22 +21,23 @@ private val log = KotlinLogging.logger {}
 class BranchAndCutSolver(
     private val instance: Instance,
     private val cplex: IloCplex,
-    private val objectiveType: String,
-    private val fairness: Double,   /* fairness variable (eps) */
+    config: Parameters,
     private val graph: Graph = instance.graph
 ) {
 
+    private val objectiveType = config.objectiveType
+    private val fairnessCoefficient = config.fairnessCoefficient
+    private val timeLimitInSeconds = config.timeLimitInSeconds
     private var computationTime by Delegates.notNull<Double>()
-    private lateinit var x: Map<Int, Map<DefaultWeightedEdge, IloIntVar>>
-    private lateinit var y: Map<Int, Map<Int, IloIntVar>>
-    private lateinit var l: Map<Int, IloNumVar>
-    private lateinit var z: IloNumVar
-    private lateinit var leps: IloNumVar
-    private lateinit var k: Map<Int, IloNumVar>
+    private lateinit var edgeVariable: Map<Int, Map<DefaultWeightedEdge, IloIntVar>>
+    private lateinit var vertexVariable: Map<Int, Map<Int, IloIntVar>>
+    private lateinit var vehicleLength: Map<Int, IloNumVar>
+    private lateinit var minMaxAuxiliaryVariable: IloNumVar
+    private lateinit var fairnessFactor: IloNumVar
+    private lateinit var conicAuxiliaryVariable: Map<Int, IloNumVar>
 
 
     init {
-        // Populate model
         addVariables()
         addConstraints()
         addObjective()
@@ -42,14 +45,8 @@ class BranchAndCutSolver(
     }
 
     private fun addVariables() {
-        /*
-        x: edge variables
-        y: vertex variables
-        l: length variable
-        k: conic variable
-        leps: upper bound on 2-norm of l (for fairness constraint)
-         */
-        x = (0 until instance.numVehicles).associateWith { vehicle ->
+
+        edgeVariable = (0 until instance.numVehicles).associateWith { vehicle ->
             graph.edgeSet().associateWith { edge ->
                 if (graph.getEdgeSource(edge) == instance.depot)
                     cplex.intVar(0, 2, "x_${vehicle}_${edge}")
@@ -58,53 +55,36 @@ class BranchAndCutSolver(
             }
         }
 
-
-        y = (0 until instance.numVehicles).associateWith { vehicle ->
+        vertexVariable = (0 until instance.numVehicles).associateWith { vehicle ->
             graph.vertexSet().associateWith { vertex ->
                 cplex.boolVar("y_${vehicle}_${vertex}")
             }
         }
 
-        l = (0 until instance.numVehicles).associateWith { vehicle ->
+        vehicleLength = (0 until instance.numVehicles).associateWith { vehicle ->
             cplex.numVar(0.0, Double.POSITIVE_INFINITY, "l_${vehicle}")
         }
 
-        z = cplex.numVar(0.0, Double.POSITIVE_INFINITY, "z")
+        minMaxAuxiliaryVariable = cplex.numVar(0.0, Double.POSITIVE_INFINITY, "z")
 
-        k = (0 until instance.numVehicles).associateWith { vehicle ->
+        conicAuxiliaryVariable = (0 until instance.numVehicles).associateWith { vehicle ->
             cplex.numVar(0.0, Double.POSITIVE_INFINITY, "k_${vehicle}")
         }
 
-        leps = cplex.numVar(0.0, Double.POSITIVE_INFINITY, "leps")
+        fairnessFactor = cplex.numVar(0.0, Double.POSITIVE_INFINITY, "leps")
 
     }
 
     private fun addConstraints() {
         addDegreeConstraints()
-        addVisitConstraints()
-        addLengthConstraints()
-        addDepotConstraints()
-        addTwoSECs()
-//        addSymmetryConstraints()
-        if (objectiveType == "min-max") {
+        addVertexVisitConstraints()
+        addLengthDefinition()
+        addDepotVisitRedundantConstraints()
+        addTwoVertexSECs()
+        if (objectiveType == "min-max")
             addMinMaxConstraints()
-        }
-        if (objectiveType == "fair") {
+        if (objectiveType == "fair")
             addFairnessConstraints()
-        }
-    }
-
-    private fun addLengthConstraints() {
-        (0 until instance.numVehicles).forEach { vehicle ->
-            val lenExpr: IloLinearNumExpr = cplex.linearNumExpr()
-            lenExpr.addTerms(
-                graph.edgeSet().map { edge -> x[vehicle]?.get(edge) }.toTypedArray(),
-                graph.edgeSet().map { edge -> -graph.getEdgeWeight(edge) }.toDoubleArray()
-            )
-            lenExpr.addTerm(1.0, l[vehicle])
-            cplex.addEq(lenExpr, 0.0, "TourLen_${vehicle}")
-            lenExpr.clear()
-        }
     }
 
     private fun addDegreeConstraints() {
@@ -114,23 +94,36 @@ class BranchAndCutSolver(
 
                 val degreeExpr: IloLinearNumExpr = cplex.linearNumExpr()
                 degreeExpr.addTerms(
-                    graph.edgesOf(vertex).map { x[vehicle]?.get(it) }.toTypedArray(),
+                    graph.edgesOf(vertex).map { edgeVariable[vehicle]?.get(it) }.toTypedArray(),
                     List(graph.edgesOf(vertex).size) { 1.0 }.toDoubleArray()
                 )
-                degreeExpr.addTerm(-2.0, y[vehicle]?.get(vertex))
+                degreeExpr.addTerm(-2.0, vertexVariable[vehicle]?.get(vertex))
                 cplex.addEq(degreeExpr, 0.0, "deg_${vehicle}_${vertex}")
                 degreeExpr.clear()
             }
         }
     }
 
-    private fun addVisitConstraints() {
+    private fun addLengthDefinition() {
+        (0 until instance.numVehicles).forEach { vehicle ->
+            val lenExpr: IloLinearNumExpr = cplex.linearNumExpr()
+            lenExpr.addTerms(
+                graph.edgeSet().map { edge -> edgeVariable[vehicle]?.get(edge) }.toTypedArray(),
+                graph.edgeSet().map { edge -> -graph.getEdgeWeight(edge) }.toDoubleArray()
+            )
+            lenExpr.addTerm(1.0, vehicleLength[vehicle])
+            cplex.addEq(lenExpr, 0.0, "TourLen_${vehicle}")
+            lenExpr.clear()
+        }
+    }
+
+    private fun addVertexVisitConstraints() {
         graph.vertexSet().forEach vertex@{ vertex ->
             if (vertex == instance.depot) return@vertex
 
             val visitExpr: IloLinearNumExpr = cplex.linearNumExpr()
             visitExpr.addTerms(
-                (0 until instance.numVehicles).map { y[it]?.get(vertex) }.toTypedArray(),
+                (0 until instance.numVehicles).map { vertexVariable[it]?.get(vertex) }.toTypedArray(),
                 List(instance.numVehicles) { 1.0 }.toDoubleArray()
             )
             cplex.addEq(visitExpr, 1.0, "visit_${vertex}")
@@ -138,7 +131,14 @@ class BranchAndCutSolver(
         }
     }
 
-    private fun addTwoSECs() {
+    /* this set of constraints is to make life easy during callbacks */
+    private fun addDepotVisitRedundantConstraints() {
+        (0 until instance.numVehicles).forEach { vehicle ->
+            cplex.addEq(vertexVariable[vehicle]?.get(instance.depot), 1.0, "depot_visit_${vehicle}")
+        }
+    }
+
+    private fun addTwoVertexSECs() {
         (0 until instance.numVehicles).forEach { vehicle ->
             graph.edgeSet().forEach edge@{ edge ->
                 val i = graph.getEdgeSource(edge)
@@ -146,13 +146,13 @@ class BranchAndCutSolver(
                 if (i == instance.depot || j == instance.depot) return@edge
                 val iExpr: IloLinearNumExpr = cplex.linearNumExpr()
                 iExpr.addTerms(
-                    listOf(x[vehicle]!![edge], y[vehicle]!![i]).toTypedArray(),
+                    listOf(edgeVariable[vehicle]!![edge], vertexVariable[vehicle]!![i]).toTypedArray(),
                     listOf(1.0, -1.0).toDoubleArray()
                 )
                 cplex.addLe(iExpr, 0.0, "2SEC_${vehicle}_($i,$j)_$i")
                 val jExpr: IloLinearNumExpr = cplex.linearNumExpr()
                 jExpr.addTerms(
-                    listOf(x[vehicle]!![edge], y[vehicle]!![j]).toTypedArray(),
+                    listOf(edgeVariable[vehicle]!![edge], vertexVariable[vehicle]!![j]).toTypedArray(),
                     listOf(1.0, -1.0).toDoubleArray()
                 )
                 cplex.addLe(jExpr, 0.0, "2SEC_${vehicle}_($i,$j)_$j")
@@ -162,18 +162,12 @@ class BranchAndCutSolver(
         }
     }
 
-    private fun addDepotConstraints() {
-        (0 until instance.numVehicles).forEach { vehicle ->
-            cplex.addEq(y[vehicle]?.get(instance.depot), 1.0, "depot_visit_${vehicle}")
-        }
-    }
-
     private fun addSymmetryConstraints() {
         /* Add constraints l1 <= l2 <= l3 <= ... <= ln */
         (0 until instance.numVehicles - 1).forEach { vehicle ->
             val symExpr: IloLinearNumExpr = cplex.linearNumExpr()
             symExpr.addTerms(
-                listOf(l[vehicle], l[vehicle + 1]).toTypedArray(),
+                listOf(vehicleLength[vehicle], vehicleLength[vehicle + 1]).toTypedArray(),
                 listOf(1.0, -1.0).toDoubleArray()
             )
             cplex.addGe(symExpr, 0.0, "TourLenVehi${vehicle}_${vehicle + 1}")
@@ -182,13 +176,13 @@ class BranchAndCutSolver(
 
     private fun addMinMaxConstraints() {
         (0 until instance.numVehicles).forEach { vehicle ->
-            val minmaxExpr: IloLinearNumExpr = cplex.linearNumExpr()
-            minmaxExpr.addTerms(
-                listOf(z, l[vehicle]!!).toTypedArray(),
+            val minMaxExpr: IloLinearNumExpr = cplex.linearNumExpr()
+            minMaxExpr.addTerms(
+                listOf(minMaxAuxiliaryVariable, vehicleLength[vehicle]!!).toTypedArray(),
                 listOf(1.0, -1.0).toDoubleArray()
             )
-            cplex.addGe(minmaxExpr, 0.0, "min-max_${vehicle}")
-            minmaxExpr.clear()
+            cplex.addGe(minMaxExpr, 0.0, "min-max_${vehicle}")
+            minMaxExpr.clear()
         }
     }
 
@@ -208,31 +202,31 @@ class BranchAndCutSolver(
         * */
 
         /*Add leps definition */
-        val eBar = 1.0 + (sqrt(instance.numVehicles.toDouble()) - 1) * fairness
-        val lepsExpr: IloLinearNumExpr = cplex.linearNumExpr()
-        lepsExpr.addTerms(
-            (0 until instance.numVehicles).map { l[it] }.toTypedArray(),
+        val epsBar = 1.0 + (sqrt(instance.numVehicles.toDouble()) - 1) * fairnessCoefficient
+        val fairnessFactorExpr: IloLinearNumExpr = cplex.linearNumExpr()
+        fairnessFactorExpr.addTerms(
+            (0 until instance.numVehicles).map { vehicleLength[it] }.toTypedArray(),
             List(instance.numVehicles) { -1.0 }.toDoubleArray()
         )
-        lepsExpr.addTerm(eBar, leps)
-        cplex.addEq(lepsExpr, 0.0, "lepsEq")
-        lepsExpr.clear()
+        fairnessFactorExpr.addTerm(epsBar, fairnessFactor)
+        cplex.addEq(fairnessFactorExpr, 0.0, "lepsEq")
+        fairnessFactorExpr.clear()
 
         /* sum_i k_i <= Leps */
-        val kExpr: IloLinearNumExpr = cplex.linearNumExpr()
-        kExpr.addTerms(
-            (0 until instance.numVehicles).map { k[it] }.toTypedArray(),
+        val conicAuxiliaryVariableExpr: IloLinearNumExpr = cplex.linearNumExpr()
+        conicAuxiliaryVariableExpr.addTerms(
+            (0 until instance.numVehicles).map { conicAuxiliaryVariable[it] }.toTypedArray(),
             List(instance.numVehicles) { 1.0 }.toDoubleArray()
         )
-        kExpr.addTerm(-1.0, leps)
-        cplex.addLe(kExpr, 0.0, "auxiliary_constraint")
-        kExpr.clear()
+        conicAuxiliaryVariableExpr.addTerm(-1.0, fairnessFactor)
+        cplex.addLe(conicAuxiliaryVariableExpr, 0.0, "auxiliary_constraint")
+        conicAuxiliaryVariableExpr.clear()
 
         /*Add OA of each conic constraint around (1, 1, 1) */
         (0 until instance.numVehicles).forEach { vehicle ->
             val expr: IloLinearNumExpr = cplex.linearNumExpr()
             expr.addTerms(
-                listOf(l[vehicle], k[vehicle], leps).toTypedArray(),
+                listOf(vehicleLength[vehicle], conicAuxiliaryVariable[vehicle], fairnessFactor).toTypedArray(),
                 listOf(2.0, -1.0, -1.0).toDoubleArray()
             )
             cplex.addLe(expr, 0.0, "tangent_$vehicle")
@@ -240,33 +234,32 @@ class BranchAndCutSolver(
         }
     }
 
-
     private fun addObjective() {
         if (objectiveType in listOf("min", "fair")) {
             val objExpr = cplex.linearNumExpr()
             objExpr.addTerms(
-                (0 until instance.numVehicles).map { l[it] }.toTypedArray(),
+                (0 until instance.numVehicles).map { vehicleLength[it] }.toTypedArray(),
                 List(instance.numVehicles) { 1.0 }.toDoubleArray()
             )
             cplex.addMinimize(objExpr)
             objExpr.clear()
         }
         if (objectiveType == "min-max") {
-            cplex.addMinimize(z)
+            cplex.addMinimize(minMaxAuxiliaryVariable)
         }
     }
 
     private fun setupCallback() {
         val cb = FairMTSPCallback(
             instance = instance,
-            x = x,
-            y = y,
-            l = l,
-            z = z,
-            leps = leps,
-            k = k,
+            edgeVariable = edgeVariable,
+            vertexVariable = vertexVariable,
+            vehicleLength = vehicleLength,
+            minMaxAuxiliaryVariable = minMaxAuxiliaryVariable,
+            fairnessFactor = fairnessFactor,
+            conicAuxiliaryVariable = conicAuxiliaryVariable,
             objectiveType = objectiveType,
-            fairness = fairness
+            fairnessCoefficient = fairnessCoefficient
         )
         val contextMask = IloCplex.Callback.Context.Id.Relaxation or IloCplex.Callback.Context.Id.Candidate
         cplex.use(cb, contextMask)
@@ -279,11 +272,23 @@ class BranchAndCutSolver(
         cplex.exportModel("logs/branch_and_cut_model.lp")
     }
 
-    fun getResult(): Result {
+    fun getInfeasibleResult(): Result {
+        return Result(
+            instanceName = instance.instanceName,
+            numVertices = instance.graph.numVertices(),
+            depot = instance.depot,
+            numVehicles = instance.numVehicles,
+            objectiveType = objectiveType,
+            vertexCoords = instance.vertexCoords,
+            computationTimeInSec = round(computationTime * 100.0) / 100.0,
+            fairnessCoefficient = fairnessCoefficient
+        )
+    }
 
+    private fun getResult(): Result {
         val tours = (0 until instance.numVehicles).associateWith { vehicle ->
-            val activeEdges = x[vehicle]!!.filter { cplex.getValue(it.value) > 0.9 }.keys.toList()
-            val activeVertices = y[vehicle]!!.filter { cplex.getValue(it.value) > 0.9 }.keys.toList()
+            val activeEdges = edgeVariable[vehicle]!!.filter { cplex.getValue(it.value) > 0.9 }.keys.toList()
+            val activeVertices = vertexVariable[vehicle]!!.filter { cplex.getValue(it.value) > 0.9 }.keys.toList()
             val isVisitedVertex = activeVertices.associateWith { false }.toMutableMap()
             val isVisitedEdge = activeEdges.associateWith { false }.toMutableMap()
             val tour = mutableListOf(instance.depot)
@@ -317,20 +322,26 @@ class BranchAndCutSolver(
             objectiveType = objectiveType,
             vertexCoords = instance.vertexCoords,
             tours = tours.values.toList(),
-            tourCost = (0 until instance.numVehicles).map { cplex.getValue(l[it]!!) },
+            tourCost = (0 until instance.numVehicles).map { cplex.getValue(vehicleLength[it]!!) },
             objectiveValue = cplex.objValue,
             computationTimeInSec = round(computationTime * 100.0) / 100.0,
-            fairness = fairness
+            fairnessCoefficient = fairnessCoefficient,
+            optimalityGapPercent = round(cplex.mipRelativeGap * 10000.0) / 100.0
         )
         return result
     }
 
-    fun solve() {
+    fun solve(): Result {
         cplex.setParam(IloCplex.Param.MIP.Display, 3)
+        cplex.setParam(IloCplex.Param.TimeLimit, timeLimitInSeconds)
         val startTime = cplex.cplexTime
-        cplex.solve()
+        if (!cplex.solve()) {
+            computationTime = cplex.cplexTime.minus(startTime)
+            throw FairMTSPException("Fair M-TSP is infeasible for fairness coefficient: $fairnessCoefficient")
+        }
         computationTime = cplex.cplexTime.minus(startTime)
-        log.info { cplex.getValues(l.values.toTypedArray()).toList() }
+        log.info { cplex.getValues(vehicleLength.values.toTypedArray()).toList() }
         log.info { "best MIP obj. value: ${cplex.objValue}" }
+        return getResult()
     }
 }

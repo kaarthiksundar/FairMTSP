@@ -55,12 +55,21 @@ class CliParser : CliktCommand() {
     ).default("./logs/")
 
 
-    val fairness: Double by option(
+    val fairnessCoefficient: Double by option(
         "-eps",
         help = "fairness value"
     ).double().default(0.5).validate {
         require(it in 0.0..1.0) {
             "fairness should be between 0 and 1"
+        }
+    }
+
+    val timeLimitInSeconds: Double by option(
+        "-t",
+        help = "time limit in seconds for CPLEX"
+    ).double().default(3600.0).validate {
+        require(it > 0.0) {
+            "time limit should be positive"
         }
     }
 
