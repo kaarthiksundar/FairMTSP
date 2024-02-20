@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "postprocessing"
+version = "0.1.0"
+description = ""
+authors = ["abhay1220 <abhay010123@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+networkx = "^3.2.1"
+matplotlib = "^3.8.2"
+osmnx = "^1.9.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

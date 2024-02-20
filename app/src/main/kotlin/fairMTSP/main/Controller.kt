@@ -6,14 +6,16 @@ import fairMTSP.data.Parameters
 import fairMTSP.solver.BranchAndCutSolver
 import ilog.cplex.IloCplex
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.serialization.encodeToString
+import java.io.File
 
-private val log = KotlinLogging.logger{}
+private val log = KotlinLogging.logger {}
 
-class Controller{
+class Controller {
     private lateinit var instance: Instance
     private lateinit var cplex: IloCplex
-    private lateinit var resultsPath: String
     private val results = sortedMapOf<String, Any>()
+    private lateinit var outputFile: String
 
     /*
     Parses [args], the given command-line arguments
@@ -21,22 +23,28 @@ class Controller{
     fun parseArgs(args: Array<String>) {
         val parser = CliParser()
         parser.main(args)
-        resultsPath = parser.outputPath
+        outputFile = parser.outputPath + parser.instanceName.split('.').first() +
+                "-v-${parser.numVehicles}-${parser.objectiveType}.json"
 
         Parameters.initialize(
             instanceName = parser.instanceName,
             instancePath = parser.instancePath,
-            numVehicles = parser.numVehicles
+            numVehicles = parser.numVehicles,
+            objectiveType = parser.objectiveType,
+            fairnessCoefficient = parser.fairnessCoefficient,
+            outputFile = outputFile,
+            timeLimitInSeconds = parser.timeLimitInSeconds
         )
     }
+
     /*
     Initialize CPLEX container
      */
-    fun initCPLEX() {
+    private fun initCPLEX() {
         cplex = IloCplex()
     }
 
-    private fun clearCPLEX(){
+    private fun clearCPLEX() {
         cplex.clearModel()
         cplex.end()
     }
@@ -52,14 +60,17 @@ class Controller{
     }
 
     fun run() {
-        runBranchAndCut()
-    }
-
-    private fun runBranchAndCut() {
         log.info { "algorithm: branch and cut" }
         initCPLEX()
-        val solver = BranchAndCutSolver(instance, cplex)
-        solver.solve()
+        val solver = BranchAndCutSolver(instance, cplex, Parameters)
+        try {
+            val result = solver.solve()
+            val json = prettyJson.encodeToString(result)
+            File(outputFile).writeText(json)
+        } catch (e: FairMTSPException) {
+            val result = solver.getInfeasibleResult()
+            val json = prettyJson.encodeToString(result)
+            File(outputFile).writeText(json)
+        }
     }
-
 }

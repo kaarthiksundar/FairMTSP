@@ -11,13 +11,33 @@ object Parameters {
     var numVehicles: Int = 2
         private set
 
+    var objectiveType: String = "min"
+        private set
+
+    var outputFile: String = ""
+        private set
+
+    var fairnessCoefficient: Double = 1.0
+        private set
+
+    var timeLimitInSeconds: Double = 3600.0
+        private set
+
     fun initialize(
         instanceName: String,
         instancePath: String,
-        numVehicles: Int
-    ){
+        numVehicles: Int,
+        objectiveType: String,
+        fairnessCoefficient: Double,
+        outputFile: String,
+        timeLimitInSeconds: Double
+    ) {
         Parameters.instanceName = instanceName
         Parameters.instancePath = instancePath
         Parameters.numVehicles = numVehicles
+        Parameters.objectiveType = objectiveType
+        Parameters.fairnessCoefficient = fairnessCoefficient
+        Parameters.outputFile = outputFile
+        Parameters.timeLimitInSeconds = timeLimitInSeconds
     }
 }
