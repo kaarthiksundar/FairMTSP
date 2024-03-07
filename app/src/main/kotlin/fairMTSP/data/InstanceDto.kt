@@ -133,7 +133,7 @@ class InstanceDto(
                 val source = vertexList[i]
                 val target = vertexList[j]
                 var edgeLength: Double = getEdgeLength(source, target)
-                if (Parameters.objectiveType == "p-norm") {
+                if (Parameters.objectiveType == "p-norm")
                     edgeLength /= Parameters.normalizingLength
                 val edge = DefaultWeightedEdge()
                 graph.addEdge(source, target, edge)
