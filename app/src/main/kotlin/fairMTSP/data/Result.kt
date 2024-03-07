@@ -16,5 +16,6 @@ data class Result(
     val objectiveValue: Double? = null,
     val computationTimeInSec: Double,
     val fairnessCoefficient: Double,
+    val pNorm: Int,
     val optimalityGapPercent: Double? = null
 )

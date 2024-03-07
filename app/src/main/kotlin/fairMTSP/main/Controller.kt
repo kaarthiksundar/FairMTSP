@@ -32,6 +32,8 @@ class Controller {
             numVehicles = parser.numVehicles,
             objectiveType = parser.objectiveType,
             fairnessCoefficient = parser.fairnessCoefficient,
+            pNorm = parser.pNorm,
+            normalizingLength = parser.normalizingLength,
             outputFile = outputFile,
             timeLimitInSeconds = parser.timeLimitInSeconds
         )
