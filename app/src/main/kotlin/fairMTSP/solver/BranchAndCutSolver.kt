@@ -12,6 +12,7 @@ import ilog.concert.IloNumVar
 import ilog.cplex.IloCplex
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jgrapht.graph.DefaultWeightedEdge
+import kotlin.math.pow
 import kotlin.math.round
 import kotlin.math.sqrt
 import kotlin.properties.Delegates
@@ -27,15 +28,17 @@ class BranchAndCutSolver(
 
     private val objectiveType = config.objectiveType
     private val fairnessCoefficient = config.fairnessCoefficient
+    private val pNorm = config.pNorm
+    private val normalizingLength = config.normalizingLength
     private val timeLimitInSeconds = config.timeLimitInSeconds
     private var computationTime by Delegates.notNull<Double>()
     private lateinit var edgeVariable: Map<Int, Map<DefaultWeightedEdge, IloIntVar>>
     private lateinit var vertexVariable: Map<Int, Map<Int, IloIntVar>>
     private lateinit var vehicleLength: Map<Int, IloNumVar>
     private lateinit var minMaxAuxiliaryVariable: IloNumVar
-    private lateinit var fairnessFactor: IloNumVar
+    private lateinit var fairnessFactor: IloNumVar  /*Leps*/
     private lateinit var conicAuxiliaryVariable: Map<Int, IloNumVar>
-
+    private lateinit var pNormAuxiliaryVariable: Map<Int, IloNumVar>
 
     init {
         addVariables()
@@ -73,6 +76,10 @@ class BranchAndCutSolver(
 
         fairnessFactor = cplex.numVar(0.0, Double.POSITIVE_INFINITY, "leps")
 
+        pNormAuxiliaryVariable = (0 until instance.numVehicles).associateWith { vehicle ->
+            cplex.numVar(0.0, Double.POSITIVE_INFINITY, "w_${vehicle}")
+        }
+
     }
 
     private fun addConstraints() {
@@ -85,6 +92,8 @@ class BranchAndCutSolver(
             addMinMaxConstraints()
         if (objectiveType == "fair")
             addFairnessConstraints()
+        if (objectiveType == "p-norm")
+            addpNormConstraints()
     }
 
     private fun addDegreeConstraints() {
@@ -106,6 +115,7 @@ class BranchAndCutSolver(
 
     private fun addLengthDefinition() {
         (0 until instance.numVehicles).forEach { vehicle ->
+            cplex.addGe(vehicleLength[vehicle], 0.0)
             val lenExpr: IloLinearNumExpr = cplex.linearNumExpr()
             lenExpr.addTerms(
                 graph.edgeSet().map { edge -> edgeVariable[vehicle]?.get(edge) }.toTypedArray(),
@@ -234,6 +244,28 @@ class BranchAndCutSolver(
         }
     }
 
+    private fun addpNormConstraints() {
+        /*
+        l' = normalizingLength
+        l'^p*w >= l^p for all vehicles
+        Taylor expansion around (w', l')
+        l'^p*w >= (1-p)*l'^p + p*l'^(p-1)*l
+        this tanget at (1,1) will be
+        l'^p*w >= (1-p) + p*l
+        add a tangent at (1,1) for each vehicle
+         */
+        (0 until instance.numVehicles).forEach { vehicle ->
+            cplex.addGe(pNormAuxiliaryVariable[vehicle], 0.0)
+            val expr: IloLinearNumExpr = cplex.linearNumExpr()
+            expr.addTerms(
+                listOf(vehicleLength[vehicle], pNormAuxiliaryVariable[vehicle]).toTypedArray(),
+                listOf(-pNorm.toDouble(), 1.0).toDoubleArray()
+            )
+            cplex.addGe(expr, 1.0 - pNorm.toDouble(), "pNormTangent_$vehicle")
+            expr.clear()
+        }
+    }
+
     private fun addObjective() {
         if (objectiveType in listOf("min", "fair")) {
             val objExpr = cplex.linearNumExpr()
@@ -247,6 +279,15 @@ class BranchAndCutSolver(
         if (objectiveType == "min-max") {
             cplex.addMinimize(minMaxAuxiliaryVariable)
         }
+        if (objectiveType == "p-norm") {
+            val objExpr = cplex.linearNumExpr()
+            objExpr.addTerms(
+                (0 until instance.numVehicles).map { pNormAuxiliaryVariable[it] }.toTypedArray(),
+                List(instance.numVehicles) { 1.0 }.toDoubleArray()
+            )
+            cplex.addMinimize(objExpr)
+            objExpr.clear()
+        }
     }
 
     private fun setupCallback() {
@@ -258,8 +299,11 @@ class BranchAndCutSolver(
             minMaxAuxiliaryVariable = minMaxAuxiliaryVariable,
             fairnessFactor = fairnessFactor,
             conicAuxiliaryVariable = conicAuxiliaryVariable,
+            pNormAuxiliaryVariable = pNormAuxiliaryVariable,
             objectiveType = objectiveType,
-            fairnessCoefficient = fairnessCoefficient
+            fairnessCoefficient = fairnessCoefficient,
+            normalizingLength = normalizingLength,
+            pNorm = pNorm
         )
         val contextMask = IloCplex.Callback.Context.Id.Relaxation or IloCplex.Callback.Context.Id.Candidate
         cplex.use(cb, contextMask)
@@ -281,7 +325,8 @@ class BranchAndCutSolver(
             objectiveType = objectiveType,
             vertexCoords = instance.vertexCoords,
             computationTimeInSec = round(computationTime * 100.0) / 100.0,
-            fairnessCoefficient = fairnessCoefficient
+            fairnessCoefficient = fairnessCoefficient,
+            pNorm = pNorm
         )
     }
 
@@ -326,12 +371,14 @@ class BranchAndCutSolver(
             objectiveValue = cplex.objValue,
             computationTimeInSec = round(computationTime * 100.0) / 100.0,
             fairnessCoefficient = fairnessCoefficient,
+            pNorm = pNorm,
             optimalityGapPercent = round(cplex.mipRelativeGap * 10000.0) / 100.0
         )
         return result
     }
 
     fun solve(): Result {
+        cplex.exportModel("logs/test.lp")
         cplex.setParam(IloCplex.Param.MIP.Display, 3)
         cplex.setParam(IloCplex.Param.TimeLimit, timeLimitInSeconds)
         val startTime = cplex.cplexTime

@@ -27,19 +27,26 @@ class FairMTSPCallback(
     private val minMaxAuxiliaryVariable: IloNumVar,
     private var fairnessFactor: IloNumVar,
     private var conicAuxiliaryVariable: Map<Int, IloNumVar>,
+    private var pNormAuxiliaryVariable: Map<Int, IloNumVar>,
     private val objectiveType: String,
-    private val fairnessCoefficient: Double
+    private val fairnessCoefficient: Double,
+    private val pNorm: Int,
+    private val normalizingLength: Double
 ) : IloCplex.Callback.Function {
 
     override fun invoke(context: Context) {
+
         if (context.inRelaxation()) {
             roundingHeuristic(context)
             fractionalSECs(context)
         }
+
         if (context.inCandidate()) {
             integerSECs(context)
             if (objectiveType == "fair")
                 fairnessOuterApproximations(context)
+            if (objectiveType == "p-norm")
+                pNormOuterApproximations(context)
         }
     }
 
@@ -135,11 +142,19 @@ class FairMTSPCallback(
                 vals.add(tourLengths[vehicle].pow(2.0) / fairnessFactorValue)
             }
         }
+        if (objectiveType == "p-norm") {
+            newSolutionObjectiveValue = tourLengths.sumOf { it.pow(pNorm) }
+
+            (0 until numVehicles).forEach { vehicle ->
+                vars.add(pNormAuxiliaryVariable[vehicle]!!)
+                vals.add(tourLengths[vehicle].pow(pNorm))
+            }
+        }
 
         // Post the rounded solution, CPLEX will check feasibility.
         context.postHeuristicSolution(
             vars.toTypedArray(), vals.toDoubleArray(), 0, vars.size, newSolutionObjectiveValue,
-            Context.SolutionStrategy.CheckFeasible
+            Context.SolutionStrategy.Propagate
         )
     }
 
@@ -283,6 +298,7 @@ class FairMTSPCallback(
                         List(vertexSubset.size) { -1.0 }.toDoubleArray()
                     )
                     subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
+                    log.debug { subTourExpr }
                     context.rejectCandidate(m.le(subTourExpr, 0.0))
                     log.debug { "adding integer SEC for vehicle $vehicle and subset $vertexSubset " }
                     subTourExpr.clear()
@@ -302,7 +318,7 @@ class FairMTSPCallback(
             val z = context.getCandidatePoint(fairnessFactor)
 
             if (x.pow(2) - y * z > tolerance) {
-                val projectionPoints = getProjectionPoints(x, y, z)
+                val projectionPoints = getFairnessProjectionPoints(x, y, z)
                 projectionPoints.forEach { (x0, y0, z0) ->
                     val cutExpr: IloLinearNumExpr = m.linearNumExpr()
                     cutExpr.addTerms(
@@ -321,7 +337,7 @@ class FairMTSPCallback(
         }
     }
 
-    private fun getProjectionPoints(x: Double, y: Double, z: Double): List<List<Double>> {
+    private fun getFairnessProjectionPoints(x: Double, y: Double, z: Double): List<List<Double>> {
         val tolerance = 1e-5
         val projectionPoints: MutableList<List<Double>> = mutableListOf()
         projectionPoints.add(listOf(sqrt(y * z), y, z))
@@ -330,5 +346,37 @@ class FairMTSPCallback(
         return projectionPoints
     }
 
+    private fun pNormOuterApproximations(context: Context) {
+        val m: IloCplexModeler = context.cplex
+        val numVehicles = instance.numVehicles
+        val tolerance = 1e-5
+
+        (0 until numVehicles).forEach { vehicle ->
+            val x = context.getCandidatePoint(vehicleLength[vehicle])
+            val y = context.getCandidatePoint(pNormAuxiliaryVariable[vehicle])
+            log.debug { "x.pow(pNorm): ${x.pow(pNorm)}, y: $y" }
+            if (x.pow(pNorm) - y > tolerance) {
+                val projectionPoints = getpNormProjectionPoints(x, y)
+                projectionPoints.forEach { (x0, y0) ->
+                    val cutExpr: IloLinearNumExpr = m.linearNumExpr()
+                    cutExpr.addTerms(
+                        listOf(vehicleLength[vehicle], pNormAuxiliaryVariable[vehicle]).toTypedArray(),
+                        listOf(-pNorm.toDouble() * y0 / x0, 1.0).toDoubleArray()
+                    )
+                    context.rejectCandidate(m.ge(cutExpr, (1.0 - pNorm.toDouble()) * y0))
+                    log.debug { "adding p-norm OA for vehicle $vehicle" }
+                    cutExpr.clear()
+                }
+                log.debug { "added cuts" }
+            }
+        }
+    }
+
+    private fun getpNormProjectionPoints(x: Double, y: Double): List<List<Double>> {
+        val projectionPoints: MutableList<List<Double>> = mutableListOf()
+        projectionPoints.add(listOf(x, x.pow(pNorm)))
+        projectionPoints.add(listOf(y.pow(1.0 / pNorm), y))
+        return projectionPoints
+    }
 }
 

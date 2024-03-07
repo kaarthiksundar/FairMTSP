@@ -20,6 +20,11 @@ object Parameters {
     var fairnessCoefficient: Double = 1.0
         private set
 
+    var pNorm: Int = 2
+        private set
+
+    var normalizingLength: Double = 1.0
+        private set
     var timeLimitInSeconds: Double = 3600.0
         private set
 
@@ -29,6 +34,8 @@ object Parameters {
         numVehicles: Int,
         objectiveType: String,
         fairnessCoefficient: Double,
+        pNorm: Int,
+        normalizingLength: Double,
         outputFile: String,
         timeLimitInSeconds: Double
     ) {
@@ -37,6 +44,8 @@ object Parameters {
         Parameters.numVehicles = numVehicles
         Parameters.objectiveType = objectiveType
         Parameters.fairnessCoefficient = fairnessCoefficient
+        Parameters.pNorm = pNorm
+        Parameters.normalizingLength = normalizingLength
         Parameters.outputFile = outputFile
         Parameters.timeLimitInSeconds = timeLimitInSeconds
     }
