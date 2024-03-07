@@ -99,7 +99,7 @@ class InstanceDto(
 
     private fun getEdgeLength(v1: Int, v2: Int): Double {
         if (edgeCosts.isEmpty()) {
-            val c1 = vertexCoords[v1]!!;
+            val c1 = vertexCoords[v1]!!
             val c2 = vertexCoords[v2]!!
             val dx = c1.x - c2.x
             val dy = c1.y - c2.y
