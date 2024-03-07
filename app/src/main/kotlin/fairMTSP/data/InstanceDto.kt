@@ -99,7 +99,7 @@ class InstanceDto(
 
     private fun getEdgeLength(v1: Int, v2: Int): Double {
         if (edgeCosts.isEmpty()) {
-            val c1 = vertexCoords[v1]!!;
+            val c1 = vertexCoords[v1]!!
             val c2 = vertexCoords[v2]!!
             val dx = c1.x - c2.x
             val dy = c1.y - c2.y
@@ -133,7 +133,7 @@ class InstanceDto(
                 val source = vertexList[i]
                 val target = vertexList[j]
                 var edgeLength: Double = getEdgeLength(source, target)
-                if (Parameters.objectiveType == "p-norm") {
+                if (Parameters.objectiveType == "p-norm")
                     edgeLength /= Parameters.normalizingLength
                 val edge = DefaultWeightedEdge()
                 graph.addEdge(source, target, edge)
