@@ -14,7 +14,6 @@ private val log = KotlinLogging.logger {}
 class Controller {
     private lateinit var instance: Instance
     private lateinit var cplex: IloCplex
-    private val results = sortedMapOf<String, Any>()
     private lateinit var outputFile: String
 
     /*
