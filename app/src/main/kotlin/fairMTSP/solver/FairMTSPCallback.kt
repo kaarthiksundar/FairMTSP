@@ -27,11 +27,10 @@ class FairMTSPCallback(
     private val minMaxAuxiliaryVariable: IloNumVar,
     private var fairnessFactor: IloNumVar,
     private var conicAuxiliaryVariable: Map<Int, IloNumVar>,
-    private var pNormAuxiliaryVariable: Map<Int, IloNumVar>,
+    private var pNormAuxiliaryVariable: IloNumVar,
     private val objectiveType: String,
     private val fairnessCoefficient: Double,
     private val pNorm: Int,
-    private val normalizingLength: Double
 ) : IloCplex.Callback.Function {
 
     override fun invoke(context: Context) {
@@ -146,8 +145,8 @@ class FairMTSPCallback(
             newSolutionObjectiveValue = tourLengths.sumOf { it.pow(pNorm) }
 
             (0 until numVehicles).forEach { vehicle ->
-                vars.add(pNormAuxiliaryVariable[vehicle]!!)
-                vals.add(tourLengths[vehicle].pow(pNorm))
+                vars.add(conicAuxiliaryVariable[vehicle]!!)
+                vals.add(tourLengths[vehicle].pow(pNorm) / newSolutionObjectiveValue.pow(pNorm - 1))
             }
         }
 
@@ -159,7 +158,6 @@ class FairMTSPCallback(
     }
 
     private fun fractionalSECs(context: Context) {
-        log.debug { "In user callback" }
         val m: IloCplexModeler = context.cplex
         val tolerance = 1e-5
 
@@ -213,7 +211,7 @@ class FairMTSPCallback(
                             )
                             subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
                             context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, false)
-                            log.debug { "adding fractional SEC for vehicle $vehicle and subset $vertexSubset " }
+//                            log.debug { "adding fractional SEC for vehicle $vehicle and subset $vertexSubset " }
                             subTourExpr.clear()
                         }
                     }
@@ -237,7 +235,7 @@ class FairMTSPCallback(
                         )
                         subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
                         context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, false)
-                        log.debug { "adding fractional SEC for vehicle $vehicle and subset $subset " }
+//                        log.debug { "adding fractional SEC for vehicle $vehicle and subset $subset " }
                         subTourExpr.clear()
                     }
                 }
@@ -298,9 +296,8 @@ class FairMTSPCallback(
                         List(vertexSubset.size) { -1.0 }.toDoubleArray()
                     )
                     subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
-                    log.debug { subTourExpr }
                     context.rejectCandidate(m.le(subTourExpr, 0.0))
-                    log.debug { "adding integer SEC for vehicle $vehicle and subset $vertexSubset " }
+//                    log.debug { "adding integer SEC for vehicle $vehicle and subset $vertexSubset " }
                     subTourExpr.clear()
                 }
             }
@@ -330,7 +327,7 @@ class FairMTSPCallback(
                         listOf(2.0 * x0, -z0, -y0).toDoubleArray()
                     )
                     context.rejectCandidate(m.le(cutExpr, 0.0))
-                    log.debug { "adding OA for vehicle $vehicle" }
+                    log.debug { "adding fairness OA for vehicle $vehicle" }
                     cutExpr.clear()
                 }
             }
@@ -350,32 +347,46 @@ class FairMTSPCallback(
         val m: IloCplexModeler = context.cplex
         val numVehicles = instance.numVehicles
         val tolerance = 1e-5
+        val alpha = 1.0 / pNorm
 
         (0 until numVehicles).forEach { vehicle ->
-            val x = context.getCandidatePoint(vehicleLength[vehicle])
-            val y = context.getCandidatePoint(pNormAuxiliaryVariable[vehicle])
-            log.debug { "x.pow(pNorm): ${x.pow(pNorm)}, y: $y" }
-            if (x.pow(pNorm) - y > tolerance) {
-                val projectionPoints = getpNormProjectionPoints(x, y)
-                projectionPoints.forEach { (x0, y0) ->
+            val x = context.getCandidatePoint(conicAuxiliaryVariable[vehicle])
+            val y = context.getCandidatePoint(pNormAuxiliaryVariable)
+            val z = context.getCandidatePoint(vehicleLength[vehicle])
+
+            if (z - x.pow(alpha) * y.pow(1.0 - alpha) > tolerance) {
+                val projectionPoints = getpNormProjectionPoints(x, y, z)
+                projectionPoints.forEach { (x0, y0, z0) ->
                     val cutExpr: IloLinearNumExpr = m.linearNumExpr()
                     cutExpr.addTerms(
-                        listOf(vehicleLength[vehicle], pNormAuxiliaryVariable[vehicle]).toTypedArray(),
-                        listOf(-pNorm.toDouble() * y0 / x0, 1.0).toDoubleArray()
+                        listOf(
+                            conicAuxiliaryVariable[vehicle],
+                            pNormAuxiliaryVariable,
+                            vehicleLength[vehicle]
+                        ).toTypedArray(),
+                        listOf(
+                            alpha * (x0 / y0).pow(alpha - 1),
+                            (1 - alpha) * (x0 / y0).pow(alpha),
+                            -1.0
+                        ).toDoubleArray()
                     )
-                    context.rejectCandidate(m.ge(cutExpr, (1.0 - pNorm.toDouble()) * y0))
+                    context.rejectCandidate(m.ge(cutExpr, 0.0))
                     log.debug { "adding p-norm OA for vehicle $vehicle" }
+                    log.debug { cutExpr }
                     cutExpr.clear()
                 }
-                log.debug { "added cuts" }
             }
         }
     }
 
-    private fun getpNormProjectionPoints(x: Double, y: Double): List<List<Double>> {
+    private fun getpNormProjectionPoints(x: Double, y: Double, z: Double): List<List<Double>> {
+        /* z <= x^alpha * y^(1-alpha) */
+        val alpha = 1.0 / pNorm
+        val tolerance = 1e-5
         val projectionPoints: MutableList<List<Double>> = mutableListOf()
-        projectionPoints.add(listOf(x, x.pow(pNorm)))
-        projectionPoints.add(listOf(y.pow(1.0 / pNorm), y))
+//        projectionPoints.add(listOf(x, y, x.pow(alpha) * y.pow(1 - alpha)))
+        if (y > tolerance) projectionPoints.add(listOf(z.pow(pNorm) / (y.pow(pNorm - 1.0)), y, z))
+        if (x > tolerance) projectionPoints.add(listOf(x, z.pow(pNorm / (pNorm - 1)) / x.pow(1.0 / (pNorm - 1)), z))
         return projectionPoints
     }
 }

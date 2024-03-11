@@ -32,7 +32,6 @@ class Controller {
             objectiveType = parser.objectiveType,
             fairnessCoefficient = parser.fairnessCoefficient,
             pNorm = parser.pNorm,
-            normalizingLength = parser.normalizingLength,
             outputFile = outputFile,
             timeLimitInSeconds = parser.timeLimitInSeconds
         )
