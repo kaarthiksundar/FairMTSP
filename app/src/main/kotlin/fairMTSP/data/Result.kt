@@ -17,5 +17,8 @@ data class Result(
     val computationTimeInSec: Double,
     val fairnessCoefficient: Double,
     val pNorm: Int,
-    val optimalityGapPercent: Double? = null
+    val optimalityGapPercent: Double? = null,
+    val jainIndex: Double? = null,
+    val giniIndex: Double? = null,
+    val normIndex: Double? = null
 )

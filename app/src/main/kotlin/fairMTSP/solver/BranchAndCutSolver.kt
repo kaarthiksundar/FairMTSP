@@ -29,7 +29,6 @@ class BranchAndCutSolver(
     private val objectiveType = config.objectiveType
     private val fairnessCoefficient = config.fairnessCoefficient
     private val pNorm = config.pNorm
-    private val normalizingLength = config.normalizingLength
     private val timeLimitInSeconds = config.timeLimitInSeconds
     private var computationTime by Delegates.notNull<Double>()
     private lateinit var edgeVariable: Map<Int, Map<DefaultWeightedEdge, IloIntVar>>
@@ -37,8 +36,8 @@ class BranchAndCutSolver(
     private lateinit var vehicleLength: Map<Int, IloNumVar>
     private lateinit var minMaxAuxiliaryVariable: IloNumVar
     private lateinit var fairnessFactor: IloNumVar  /*Leps*/
-    private lateinit var conicAuxiliaryVariable: Map<Int, IloNumVar>
-    private lateinit var pNormAuxiliaryVariable: Map<Int, IloNumVar>
+    private lateinit var conicAuxiliaryVariable: Map<Int, IloNumVar> /* common conic variable for fair and p-norm objective */
+    private lateinit var pNormAuxiliaryVariable: IloNumVar /* objective variable for p-norm */
 
     init {
         addVariables()
@@ -76,9 +75,8 @@ class BranchAndCutSolver(
 
         fairnessFactor = cplex.numVar(0.0, Double.POSITIVE_INFINITY, "leps")
 
-        pNormAuxiliaryVariable = (0 until instance.numVehicles).associateWith { vehicle ->
-            cplex.numVar(0.0, Double.POSITIVE_INFINITY, "w_${vehicle}")
-        }
+        pNormAuxiliaryVariable = cplex.numVar(0.0, Double.POSITIVE_INFINITY, "pNormAuxVar${pNorm}")
+
 
     }
 
@@ -94,6 +92,10 @@ class BranchAndCutSolver(
             addFairnessConstraints()
         if (objectiveType == "p-norm")
             addpNormConstraints()
+        if (objectiveType == "gini") {
+            addSymmetryConstraints()
+            addGiniConstraints()
+        }
     }
 
     private fun addDegreeConstraints() {
@@ -173,7 +175,7 @@ class BranchAndCutSolver(
     }
 
     private fun addSymmetryConstraints() {
-        /* Add constraints l1 <= l2 <= l3 <= ... <= ln */
+        /* Add constraints l1 >= l2 >= l3 >= ... >= ln */
         (0 until instance.numVehicles - 1).forEach { vehicle ->
             val symExpr: IloLinearNumExpr = cplex.linearNumExpr()
             symExpr.addTerms(
@@ -229,7 +231,7 @@ class BranchAndCutSolver(
             List(instance.numVehicles) { 1.0 }.toDoubleArray()
         )
         conicAuxiliaryVariableExpr.addTerm(-1.0, fairnessFactor)
-        cplex.addLe(conicAuxiliaryVariableExpr, 0.0, "auxiliary_constraint")
+        cplex.addLe(conicAuxiliaryVariableExpr, 0.0, "fairnessFactor_constraint")
         conicAuxiliaryVariableExpr.clear()
 
         /*Add OA of each conic constraint around (1, 1, 1) */
@@ -246,28 +248,59 @@ class BranchAndCutSolver(
 
     private fun addpNormConstraints() {
         /*
-        l' = normalizingLength
-        l'^p*w >= l^p for all vehicles
-        Taylor expansion around (w', l')
-        l'^p*w >= (1-p)*l'^p + p*l'^(p-1)*l
-        this tanget at (1,1) will be
-        l'^p*w >= (1-p) + p*l
-        add a tangent at (1,1) for each vehicle
+        alpha = 1/pNorm
+        z = pNormAuxVar
+        Li = conicAuxVar
+        li <= Li^alpha * z^(1-alpha)  for all vehicles i
+        Taylor expansion around (L0, z0, l0)
+        l <= alpha*(L0/z0)^(alpha-1)*L + (1-alpha)*(L0/z0)^alpha*z
+        this tangent at (1,1,1) will be
+        l <= alpha*L + (1-alpha)*z
          */
+        val alpha: Double = 1.0 / pNorm
+
+        val pNormAuxiliaryVariableExpr: IloLinearNumExpr = cplex.linearNumExpr()
+        pNormAuxiliaryVariableExpr.addTerms(
+            (0 until instance.numVehicles).map { conicAuxiliaryVariable[it] }.toTypedArray(),
+            List(instance.numVehicles) { 1.0 }.toDoubleArray()
+        )
+        cplex.addEq(pNormAuxiliaryVariableExpr, pNormAuxiliaryVariable, "p_norm_auxiliary_constraint")
+        pNormAuxiliaryVariableExpr.clear()
+
+        /*Add tangents @ (1,1,1)*/
         (0 until instance.numVehicles).forEach { vehicle ->
-            cplex.addGe(pNormAuxiliaryVariable[vehicle], 0.0)
             val expr: IloLinearNumExpr = cplex.linearNumExpr()
             expr.addTerms(
-                listOf(vehicleLength[vehicle], pNormAuxiliaryVariable[vehicle]).toTypedArray(),
-                listOf(-pNorm.toDouble(), 1.0).toDoubleArray()
+                listOf(
+                    conicAuxiliaryVariable[vehicle],
+                    pNormAuxiliaryVariable,
+                    vehicleLength[vehicle]
+                ).toTypedArray(),
+                listOf(alpha, 1.0 - alpha, -1.0).toDoubleArray()
             )
-            cplex.addGe(expr, 1.0 - pNorm.toDouble(), "pNormTangent_$vehicle")
+            cplex.addGe(expr, 0.0, "pNormTangent_$vehicle")
             expr.clear()
         }
     }
 
+    private fun addGiniConstraints() {
+        /*Sigma(i) ( (1-eps)n+1+eps -2i )*li <= 0*/
+
+        val giniExpr: IloLinearNumExpr = cplex.linearNumExpr()
+        giniExpr.addTerms(
+            (0 until instance.numVehicles).map { vehicleLength[it] }.toTypedArray(),
+            (1..instance.numVehicles).map {
+                (1.0 - fairnessCoefficient) * instance.numVehicles.toDouble() +
+                        1.0 + fairnessCoefficient - 2.0 * it.toDouble()
+            }.toDoubleArray()
+        )
+        cplex.addLe(giniExpr, 0.0, "Gini Fairness Constraint")
+        giniExpr.clear()
+    }
+
     private fun addObjective() {
-        if (objectiveType in listOf("min", "fair")) {
+        if (objectiveType in listOf("min", "fair", "gini")) {
+            /*minimize the l 1-norm*/
             val objExpr = cplex.linearNumExpr()
             objExpr.addTerms(
                 (0 until instance.numVehicles).map { vehicleLength[it] }.toTypedArray(),
@@ -280,13 +313,7 @@ class BranchAndCutSolver(
             cplex.addMinimize(minMaxAuxiliaryVariable)
         }
         if (objectiveType == "p-norm") {
-            val objExpr = cplex.linearNumExpr()
-            objExpr.addTerms(
-                (0 until instance.numVehicles).map { pNormAuxiliaryVariable[it] }.toTypedArray(),
-                List(instance.numVehicles) { 1.0 }.toDoubleArray()
-            )
-            cplex.addMinimize(objExpr)
-            objExpr.clear()
+            cplex.addMinimize(pNormAuxiliaryVariable)
         }
     }
 
@@ -302,7 +329,6 @@ class BranchAndCutSolver(
             pNormAuxiliaryVariable = pNormAuxiliaryVariable,
             objectiveType = objectiveType,
             fairnessCoefficient = fairnessCoefficient,
-            normalizingLength = normalizingLength,
             pNorm = pNorm
         )
         val contextMask = IloCplex.Callback.Context.Id.Relaxation or IloCplex.Callback.Context.Id.Candidate
@@ -359,6 +385,14 @@ class BranchAndCutSolver(
             }
             tour
         }
+        val tourCost = (0 until instance.numVehicles).map { cplex.getValue(vehicleLength[it]!!) }
+        val jainIndex = tourCost.sumOf { it }.pow(2.0) / tourCost.sumOf { it.pow(2.0) } / instance.numVehicles
+        val giniIndex =
+            (0 until instance.numVehicles).sumOf { (instance.numVehicles + 1.0 - 2.0 * (it + 1.0)) * tourCost[it] } /
+                    tourCost.sumOf { it } / (instance.numVehicles - 1.0)
+        val normIndex =
+            (tourCost.sumOf { it } / (tourCost.sumOf { it.pow(2.0) }).pow(0.5) - 1) / (sqrt(instance.numVehicles.toDouble()) - 1.0)
+
         val result = Result(
             instanceName = instance.instanceName,
             numVertices = instance.graph.numVertices(),
@@ -367,12 +401,15 @@ class BranchAndCutSolver(
             objectiveType = objectiveType,
             vertexCoords = instance.vertexCoords,
             tours = tours.values.toList(),
-            tourCost = (0 until instance.numVehicles).map { cplex.getValue(vehicleLength[it]!!) },
+            tourCost = tourCost,
             objectiveValue = cplex.objValue,
             computationTimeInSec = round(computationTime * 100.0) / 100.0,
             fairnessCoefficient = fairnessCoefficient,
             pNorm = pNorm,
-            optimalityGapPercent = round(cplex.mipRelativeGap * 10000.0) / 100.0
+            optimalityGapPercent = round(cplex.mipRelativeGap * 10000.0) / 100.0,
+            jainIndex = jainIndex,
+            giniIndex = giniIndex,
+            normIndex = normIndex
         )
         return result
     }
@@ -387,7 +424,8 @@ class BranchAndCutSolver(
             throw FairMTSPException("Fair M-TSP is infeasible for fairness coefficient: $fairnessCoefficient")
         }
         computationTime = cplex.cplexTime.minus(startTime)
-        log.info { cplex.getValues(vehicleLength.values.toTypedArray()).toList() }
+        log.info { "Tour Lengths ${cplex.getValues(vehicleLength.values.toTypedArray()).toList()}" }
+        log.info { "Sum of Tour Lengths ${cplex.getValues(vehicleLength.values.toTypedArray()).toList().sumOf { it }}" }
         log.info { "best MIP obj. value: ${cplex.objValue}" }
         return getResult()
     }
