@@ -46,8 +46,8 @@ class CliParser : CliktCommand() {
     val objectiveType: String by option(
         "-obj",
         help = "type of objective"
-    ).default("p-norm").validate {
-        require(it in arrayOf("min", "min-max", "fair", "p-norm")) {
+    ).default("gini").validate {
+        require(it in arrayOf("min", "min-max", "fair", "p-norm", "gini")) {
             "objectiveType should be min, p-norm, min-max or fair"
         }
     }
@@ -76,10 +76,6 @@ class CliParser : CliktCommand() {
         }
     }
 
-    val normalizingLength: Double by option(
-        "-l",
-        help = "Normalizing Length Value"
-    ).double().default(1.0)
 
     val timeLimitInSeconds: Double by option(
         "-t",
