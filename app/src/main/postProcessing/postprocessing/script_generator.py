@@ -29,10 +29,10 @@ class Config:
             self.base_path, 'build', 'libs', 'uber.jar')
         self.instance_file_path = os.path.join(self.base_path, "final-results", "instances.csv")
 
-        self.min_runs = True
+        self.min_runs = False
         self.minmax_runs = False
         self.pNorm_runs = False
-        self.espFair_runs = False
+        self.epsFair_runs = False
         self.deltaFair_runs = False
         
 def guess_cplex_library_path():
@@ -54,6 +54,7 @@ class Controller:
     def __init__(self, config) -> None:
         self.config = config
         self._base_cmd = None
+        self.objective = None
 
     def run(self):
         self._base_cmd = [
@@ -63,26 +64,35 @@ class Controller:
         ]
         self._prepare_uberjar()
 
-        if self.config.min_runs:
-            self._setup_min_runs()
+        config_to_objective = {"min_runs": "min","minmax_runs": "min-max","pNorm_runs": "p-norm",
+                               "epsFair_runs": "eps-fair","deltaFair_runs": "delta-fair"}
+
+        for config, objective in config_to_objective.items():
+            if getattr(self.config, config):
+                self.objective = objective
+                break
+
+        self._setup_runs()
             
         
-    def _setup_min_runs(self):
+    def _setup_runs(self):
         cases = self._collect_cases()
         self._generate_setup(cases)
         
 
     def _generate_setup(self, cases):
         runs_file_path = os.path.join(
-            self.config.script_folder_path, '_runs.txt')
+            self.config.script_folder_path, self.objective+'_runs.txt')
         
         with open(runs_file_path, 'w') as f_out:
-            for instance, vehicle in cases:
+            for instance, vehicle, fc, p in cases:
                 cmd = [c for c in self._base_cmd]
                 cmd.extend([
                     "-n", instance,
                     "-v", str(vehicle),
-                    "-obj", "min",
+                    "-obj", self.objective,
+                    "-fc", str(fc),
+                    "-p", str(p),
                     "-t", str(3600)
                 ])
                 f_out.write(' '.join(cmd))
@@ -91,15 +101,15 @@ class Controller:
 
 
     def _collect_cases(self):
-        cases = []
         instance_names = ['burma14.tsp', 'bay29.tsp', 'eil51.tsp', 'eil76.tsp']
         vehicles_count = [3,4,5]
+        
+        pNorm = [2,3,5,10] if self.objective == "p-norm" else [1]
+        fairnessCoefficient = [0.1, 0.3, 0.5, 0.7, 0.9] if self.objective in ["eps-fair", "delta-fair"] else [0.0]
 
-        for instance in instance_names:
-            for vehicle in vehicles_count:
-                cases.append((instance, vehicle))
-
-        return cases
+        return [(instance, vehicle, fc, p) for instance in instance_names for vehicle in vehicles_count 
+                                            for fc in fairnessCoefficient for p in pNorm]
+     
 
     
     def _prepare_uberjar(self):
@@ -132,7 +142,7 @@ def handle_command_line():
     config.min_runs = args.min
     config.minmax_runs = args.minmax
     config.pNorm_runs = args.pNorm
-    config.espFair_runs = args.epsFair
+    config.epsFair_runs = args.epsFair
     config.deltaFair_runs = args.deltaFair
     if args.instancefilepath:
         config.instance_file_path = args.instancefilepath

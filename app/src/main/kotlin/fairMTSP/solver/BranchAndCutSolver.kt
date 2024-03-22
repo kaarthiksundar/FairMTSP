@@ -88,13 +88,13 @@ class BranchAndCutSolver(
         addTwoVertexSECs()
         if (objectiveType == "min-max")
             addMinMaxConstraints()
-        if (objectiveType == "fair")
-            addFairnessConstraints()
         if (objectiveType == "p-norm")
             addpNormConstraints()
-        if (objectiveType == "gini") {
+        if (objectiveType == "eps-fair")
+            addEPSFairConstraints()
+        if (objectiveType == "delta-fair") {
             addSymmetryConstraints()
-            addGiniConstraints()
+            addDeltaFairConstraints()
         }
     }
 
@@ -198,7 +198,7 @@ class BranchAndCutSolver(
         }
     }
 
-    private fun addFairnessConstraints() {
+    private fun addEPSFairConstraints() {
         /*
         * ||l||_2 <= ||l||_1 <= sqrt(n)*||l||_2
         * Lower bound of ||l||_1      (1+(sqrt(n)-1)*eps)||l||_2 <= |l|_1
@@ -283,7 +283,7 @@ class BranchAndCutSolver(
         }
     }
 
-    private fun addGiniConstraints() {
+    private fun addDeltaFairConstraints() {
         /*Sigma(i) ( (1-eps)n+1+eps -2i )*li <= 0*/
 
         val giniExpr: IloLinearNumExpr = cplex.linearNumExpr()
@@ -299,7 +299,7 @@ class BranchAndCutSolver(
     }
 
     private fun addObjective() {
-        if (objectiveType in listOf("min", "fair", "gini")) {
+        if (objectiveType in listOf("min", "eps-fair", "delta-fair")) {
             /*minimize the l 1-norm*/
             val objExpr = cplex.linearNumExpr()
             objExpr.addTerms(

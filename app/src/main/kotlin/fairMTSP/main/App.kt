@@ -5,15 +5,6 @@ package fairMTSP.main
 
 import ilog.cplex.IloCplex
 
-class App {
-    /*
-    @param greeting variable with a getter function
-     */
-    val greeting: String
-        get() {
-            return "Hello World!"
-        }
-}
 
 fun main(args: Array<String>) {
     val controller = Controller()
