@@ -47,8 +47,8 @@ class CliParser : CliktCommand() {
         "-obj",
         help = "type of objective"
     ).default("gini").validate {
-        require(it in arrayOf("min", "min-max", "fair", "p-norm", "gini")) {
-            "objectiveType should be min, p-norm, min-max or fair"
+        require(it in arrayOf("min", "min-max", "p-norm", "eps-fair", "delta-fair")) {
+            "objectiveType should be min, p-norm, min-max, eps-fair or delta-fair"
         }
     }
 
@@ -59,11 +59,11 @@ class CliParser : CliktCommand() {
 
 
     val fairnessCoefficient: Double by option(
-        "-eps",
+        "-fc",
         help = "fairness value"
     ).double().default(0.5).validate {
         require(it in 0.0..1.0) {
-            "fairness should be between 0 and 1"
+            "fairness Coefficient should be between 0 and 1"
         }
     }
 
@@ -71,7 +71,7 @@ class CliParser : CliktCommand() {
         "-p",
         help = "p Norm value"
     ).int().default(2).validate {
-        require(ceil(it.toDouble()) == floor(it.toDouble())) {
+        require(ceil(it.toDouble()) == floor(it.toDouble()) && it >= 1) {
             "p should be an integer greater than or equal to 1"
         }
     }

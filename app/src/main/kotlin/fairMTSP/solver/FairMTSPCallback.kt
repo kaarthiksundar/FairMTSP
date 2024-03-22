@@ -42,7 +42,7 @@ class FairMTSPCallback(
 
         if (context.inCandidate()) {
             integerSECs(context)
-            if (objectiveType == "fair")
+            if (objectiveType == "eps-fair")
                 fairnessOuterApproximations(context)
             if (objectiveType == "p-norm")
                 pNormOuterApproximations(context)
