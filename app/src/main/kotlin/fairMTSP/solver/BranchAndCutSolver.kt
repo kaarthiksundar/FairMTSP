@@ -86,6 +86,7 @@ class BranchAndCutSolver(
         addLengthDefinition()
         addDepotVisitRedundantConstraints()
         addTwoVertexSECs()
+        addSymmetryConstraints()
         if (objectiveType == "min-max")
             addMinMaxConstraints()
         if (objectiveType == "p-norm")
@@ -93,7 +94,6 @@ class BranchAndCutSolver(
         if (objectiveType == "eps-fair")
             addEPSFairConstraints()
         if (objectiveType == "delta-fair") {
-            addSymmetryConstraints()
             addDeltaFairConstraints()
         }
     }
@@ -415,7 +415,6 @@ class BranchAndCutSolver(
     }
 
     fun solve(): Result {
-        cplex.exportModel("logs/test.lp")
         cplex.setParam(IloCplex.Param.MIP.Display, 3)
         cplex.setParam(IloCplex.Param.TimeLimit, timeLimitInSeconds)
         val startTime = cplex.cplexTime
