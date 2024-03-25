@@ -60,7 +60,6 @@ class Controller {
     }
 
     fun run() {
-        log.info { "algorithm: branch and cut" }
         initCPLEX()
         val solver = BranchAndCutSolver(instance, cplex, Parameters)
         try {

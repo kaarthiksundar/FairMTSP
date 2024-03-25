@@ -3,8 +3,6 @@
  */
 package fairMTSP.main
 
-import ilog.cplex.IloCplex
-
 
 fun main(args: Array<String>) {
     val controller = Controller()

@@ -11,6 +11,8 @@ app/logs/*
 app/build/*
 runs/*
 !*.gitkeep
+results
+!results/*.tar.gz
 
 # Mac
 **/.DS_Store

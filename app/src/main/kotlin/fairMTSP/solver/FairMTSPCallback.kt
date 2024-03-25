@@ -35,9 +35,13 @@ class FairMTSPCallback(
 
     override fun invoke(context: Context) {
 
-        if (context.inRelaxation()) {
-            roundingHeuristic(context)
-            fractionalSECs(context)
+        try {
+            if (context.inRelaxation()) {
+                fractionalSECs(context)
+            }
+        } catch (e: Exception) {
+            println(e)
+            throw e
         }
 
         if (context.inCandidate()) {
@@ -128,7 +132,7 @@ class FairMTSPCallback(
             vars.add(minMaxAuxiliaryVariable)
             vals.add(newSolutionObjectiveValue)
         }
-        if (objectiveType == "fair") {
+        if (objectiveType == "eps-fair") {
             newSolutionObjectiveValue = tourLengths.sum()
 
             vars.add(fairnessFactor)
@@ -140,6 +144,9 @@ class FairMTSPCallback(
                 vars.add(conicAuxiliaryVariable[vehicle]!!)
                 vals.add(tourLengths[vehicle].pow(2.0) / fairnessFactorValue)
             }
+        }
+        if (objectiveType == "delta-fair") {
+            newSolutionObjectiveValue = tourLengths.sum()
         }
         if (objectiveType == "p-norm") {
             newSolutionObjectiveValue = tourLengths.sumOf { it.pow(pNorm) }
@@ -153,16 +160,17 @@ class FairMTSPCallback(
         // Post the rounded solution, CPLEX will check feasibility.
         context.postHeuristicSolution(
             vars.toTypedArray(), vals.toDoubleArray(), 0, vars.size, newSolutionObjectiveValue,
-            Context.SolutionStrategy.Propagate
+            Context.SolutionStrategy.CheckFeasible
         )
     }
 
     private fun fractionalSECs(context: Context) {
         val m: IloCplexModeler = context.cplex
-        val tolerance = 1e-5
+        val tolerance = 1e-6
 
         val graph = instance.graph
         val numVehicles = instance.numVehicles
+
 
         (0 until numVehicles).forEach { vehicle ->
             val activeVertices =
@@ -171,7 +179,9 @@ class FairMTSPCallback(
                 }.toMap()
             val activeEdges =
                 edgeVariable[vehicle]!!.map { Pair(it.key, context.getRelaxationPoint(it.value)) }.filter {
-                    it.second > tolerance
+                    it.second > tolerance &&
+                            activeVertices.contains(graph.getEdgeSource(it.first)) &&
+                            activeVertices.contains(graph.getEdgeTarget(it.first))
                 }.toMap()
 
             val subGraph = Graph(DefaultWeightedEdge::class.java)
@@ -183,7 +193,6 @@ class FairMTSPCallback(
             }
 
             val connectedSets = ConnectivityInspector(subGraph).connectedSets().toList()
-
             if (connectedSets.size == 1 && subGraph.vertexSet().size != 1) {
                 val gomoryHuCutTree = GusfieldGomoryHuCutTree(subGraph)
                 val minCut = gomoryHuCutTree.calculateMinCut()
@@ -210,8 +219,8 @@ class FairMTSPCallback(
                                 List(vertexSubset.size) { -1.0 }.toDoubleArray()
                             )
                             subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
-                            context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, false)
-//                            log.debug { "adding fractional SEC for vehicle $vehicle and subset $vertexSubset " }
+                            context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, true)
+                            log.debug { "adding fractional SEC for vehicle $vehicle and subset $vertexSubset " }
                             subTourExpr.clear()
                         }
                     }
@@ -234,8 +243,8 @@ class FairMTSPCallback(
                             List(subset.size) { -1.0 }.toDoubleArray()
                         )
                         subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
-                        context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, false)
-//                        log.debug { "adding fractional SEC for vehicle $vehicle and subset $subset " }
+                        context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, true)
+                        log.debug { "adding fractional SEC for vehicle $vehicle and subset $subset " }
                         subTourExpr.clear()
                     }
                 }
@@ -297,7 +306,7 @@ class FairMTSPCallback(
                     )
                     subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
                     context.rejectCandidate(m.le(subTourExpr, 0.0))
-//                    log.debug { "adding integer SEC for vehicle $vehicle and subset $vertexSubset " }
+                    log.debug { "adding integer SEC for vehicle $vehicle and subset $vertexSubset " }
                     subTourExpr.clear()
                 }
             }
@@ -356,7 +365,7 @@ class FairMTSPCallback(
 
             if (z - x.pow(alpha) * y.pow(1.0 - alpha) > tolerance) {
                 val projectionPoints = getpNormProjectionPoints(x, y, z)
-                projectionPoints.forEach { (x0, y0, z0) ->
+                projectionPoints.forEach { (x0, y0, _) ->
                     val cutExpr: IloLinearNumExpr = m.linearNumExpr()
                     cutExpr.addTerms(
                         listOf(
@@ -381,12 +390,13 @@ class FairMTSPCallback(
 
     private fun getpNormProjectionPoints(x: Double, y: Double, z: Double): List<List<Double>> {
         /* z <= x^alpha * y^(1-alpha) */
-        val alpha = 1.0 / pNorm
+//        val alpha = 1.0 / pNorm
         val tolerance = 1e-5
         val projectionPoints: MutableList<List<Double>> = mutableListOf()
 //        projectionPoints.add(listOf(x, y, x.pow(alpha) * y.pow(1 - alpha)))
         if (y > tolerance) projectionPoints.add(listOf(z.pow(pNorm) / (y.pow(pNorm - 1.0)), y, z))
         if (x > tolerance) projectionPoints.add(listOf(x, z.pow(pNorm / (pNorm - 1)) / x.pow(1.0 / (pNorm - 1)), z))
+
         return projectionPoints
     }
 }

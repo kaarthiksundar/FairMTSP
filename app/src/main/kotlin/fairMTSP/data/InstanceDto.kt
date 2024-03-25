@@ -5,12 +5,8 @@ import fairMTSP.main.Graph
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jgrapht.graph.DefaultWeightedEdge
 import java.io.File
-import kotlin.math.ceil
-import kotlin.math.floor
 import kotlin.math.round
 import kotlin.math.sqrt
-import kotlin.properties.Delegates
-import kotlin.time.Duration.Companion.seconds
 
 private val log = KotlinLogging.logger {}
 
@@ -54,7 +50,7 @@ class InstanceDto(
 
         val numVerticesLine = lines[3].split("[ \t]".toRegex())
         numVertices = numVerticesLine.last().toInt()
-        log.info { "number of vertices $numVertices" }
+        log.debug { "number of vertices $numVertices" }
 
         val depotLine = lines[1].split("[ \t]".toRegex())
         val depotFlag = depotLine.first() == "DEPOT"
