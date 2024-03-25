@@ -19,7 +19,7 @@ class ScriptException(Exception):
         return repr(self.value)
 
 class Config:
-    
+
     def __init__(self) -> None:
         self.script_folder_path = os.path.dirname(os.path.realpath(__file__))
         self.base_path = os.path.abspath(os.path.join(self.script_folder_path, '../../../../..'))
@@ -35,10 +35,10 @@ class Config:
         self.epsFair_runs = False
         self.deltaFair_runs = False
 
-def get_base_path() -> str: 
+def get_base_path() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../..'))
 
-def get_data_path() -> str: 
+def get_data_path() -> str:
     return os.path.join(get_base_path(), 'app', 'data')
 
 def guess_cplex_library_path():
@@ -79,17 +79,17 @@ class Controller:
                 break
 
         self._setup_runs()
-            
-        
+
+
     def _setup_runs(self):
         cases = self._collect_cases()
         self._generate_setup(cases)
-        
+
 
     def _generate_setup(self, cases):
         runs_file_path = os.path.join(
             self.config.script_folder_path, self.objective+'_runs.txt')
-        
+
         with open(runs_file_path, 'w') as f_out:
             for instance, vehicle, fc, p in cases:
                 cmd = [c for c in self._base_cmd]
@@ -111,13 +111,13 @@ class Controller:
     def _collect_cases(self):
         instance_names = ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']
         vehicles_count = [3,4,5]
-        
+
         pNorm = [2,3,5,10] if self.objective == "p-norm" else [1]
         fairnessCoefficient = [0.1, 0.3, 0.5, 0.7, 0.9] if self.objective in ["eps-fair", "delta-fair"] else [0.0]
 
-        return [(instance, vehicle, fc, p) for instance in instance_names for vehicle in vehicles_count 
+        return [(instance, vehicle, fc, p) for instance in instance_names for vehicle in vehicles_count
                                             for fc in fairnessCoefficient for p in pNorm]
-     
+
 
     def _prepare_test_folder(self, cases):
         rt_path = os.path.join(self.config.base_path, 'runs', self.objective)
@@ -140,13 +140,13 @@ class Controller:
             shutil.copy(src, dst)
 
 
-        for name in ['results']:
+        for name in ['results', 'logs', 'output']:
             folder_path = os.path.join(rt_path, name)
             os.makedirs(folder_path, exist_ok=True)
-    
+
         log.info('Test folder completed')
-        
-    
+
+
     def _prepare_uberjar(self):
         os.chdir(self.config.base_path)
         subprocess.check_call(['gradle', 'clean', 'cleanlogs', 'uberjar'])
@@ -170,7 +170,7 @@ def handle_command_line():
                         help="generate runs for delta-fair objective")
     parser.add_argument("-i", "--instancefilepath", type=str,
                         help="path to csv file with instances to run")
-    
+
     args = parser.parse_args()
     config = Config()
 
