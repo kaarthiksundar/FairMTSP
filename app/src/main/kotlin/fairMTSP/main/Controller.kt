@@ -23,7 +23,7 @@ class Controller {
         val parser = CliParser()
         parser.main(args)
         outputFile = parser.outputPath + parser.instanceName.split('.').first() +
-                "-v-${parser.numVehicles}-${parser.objectiveType}.json"
+                "-v-${parser.numVehicles}-${parser.objectiveType}-p-${parser.pNorm}-fc-${(parser.fairnessCoefficient * 100).toInt()}.json"
 
         Parameters.initialize(
             instanceName = parser.instanceName,
