@@ -9,6 +9,7 @@ app/data/att48.tsp
 app/data/eil101.tsp
 app/logs/*
 app/build/*
+runs/*
 !*.gitkeep
 
 # Mac
