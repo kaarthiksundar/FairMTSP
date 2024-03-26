@@ -417,6 +417,7 @@ class BranchAndCutSolver(
     fun solve(): Result {
         cplex.setParam(IloCplex.Param.MIP.Display, 3)
         cplex.setParam(IloCplex.Param.TimeLimit, timeLimitInSeconds)
+        cplex.setParam(IloCplex.Param.Emphasis.MIP, 2)
         val startTime = cplex.cplexTime
         if (!cplex.solve()) {
             computationTime = cplex.cplexTime.minus(startTime)

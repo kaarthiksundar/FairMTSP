@@ -36,7 +36,6 @@ class FairMTSPCallback(
     override fun invoke(context: Context) {
 
         if (context.inRelaxation()) {
-            roundingHeuristic(context)
             fractionalSECs(context)
         }
 

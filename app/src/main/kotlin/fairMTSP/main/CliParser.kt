@@ -46,7 +46,7 @@ class CliParser : CliktCommand() {
     val objectiveType: String by option(
         "-obj",
         help = "type of objective"
-    ).default("gini").validate {
+    ).default("min").validate {
         require(it in arrayOf("min", "min-max", "p-norm", "eps-fair", "delta-fair")) {
             "objectiveType should be min, p-norm, min-max, eps-fair or delta-fair"
         }
