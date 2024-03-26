@@ -3,8 +3,10 @@ package fairMTSP.solver
 import fairMTSP.data.Instance
 import fairMTSP.main.Graph
 import fairMTSP.main.numVertices
+import ilog.concert.IloException
 import ilog.concert.IloLinearNumExpr
 import ilog.concert.IloNumVar
+import ilog.cplex.CpxException
 import ilog.cplex.IloCplex
 import ilog.cplex.IloCplex.Callback.Context
 import ilog.cplex.IloCplexModeler
@@ -35,17 +37,23 @@ class FairMTSPCallback(
 
     override fun invoke(context: Context) {
 
-        if (context.inRelaxation()) {
-            fractionalSECs(context)
+        try {
+            if (context.inRelaxation()) {
+                fractionalSECs(context)
+            }
+
+            if (context.inCandidate()) {
+                integerSECs(context)
+                if (objectiveType == "eps-fair")
+                    fairnessOuterApproximations(context)
+                if (objectiveType == "p-norm")
+                    pNormOuterApproximations(context)
+            }
+        } catch (e: CpxException) {
+            println(e)
+            throw e
         }
 
-        if (context.inCandidate()) {
-            integerSECs(context)
-            if (objectiveType == "eps-fair")
-                fairnessOuterApproximations(context)
-            if (objectiveType == "p-norm")
-                pNormOuterApproximations(context)
-        }
     }
 
     private fun roundingHeuristic(context: Context) {
@@ -127,7 +135,7 @@ class FairMTSPCallback(
             vars.add(minMaxAuxiliaryVariable)
             vals.add(newSolutionObjectiveValue)
         }
-        if (objectiveType == "fair") {
+        if (objectiveType == "eps-fair") {
             newSolutionObjectiveValue = tourLengths.sum()
 
             vars.add(fairnessFactor)
@@ -139,6 +147,9 @@ class FairMTSPCallback(
                 vars.add(conicAuxiliaryVariable[vehicle]!!)
                 vals.add(tourLengths[vehicle].pow(2.0) / fairnessFactorValue)
             }
+        }
+        if (objectiveType == "delta-fair") {
+            newSolutionObjectiveValue = tourLengths.sum()
         }
         if (objectiveType == "p-norm") {
             newSolutionObjectiveValue = tourLengths.sumOf { it.pow(pNorm) }
@@ -152,7 +163,7 @@ class FairMTSPCallback(
         // Post the rounded solution, CPLEX will check feasibility.
         context.postHeuristicSolution(
             vars.toTypedArray(), vals.toDoubleArray(), 0, vars.size, newSolutionObjectiveValue,
-            Context.SolutionStrategy.Propagate
+            Context.SolutionStrategy.CheckFeasible
         )
     }
 
@@ -209,7 +220,7 @@ class FairMTSPCallback(
                                 List(vertexSubset.size) { -1.0 }.toDoubleArray()
                             )
                             subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
-                            context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, false)
+                            context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, true)
 //                            log.debug { "adding fractional SEC for vehicle $vehicle and subset $vertexSubset " }
                             subTourExpr.clear()
                         }
@@ -233,8 +244,8 @@ class FairMTSPCallback(
                             List(subset.size) { -1.0 }.toDoubleArray()
                         )
                         subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
-                        context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, false)
-//                        log.debug { "adding fractional SEC for vehicle $vehicle and subset $subset " }
+                        context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, true)
+//                      log.debug { "adding fractional SEC for vehicle $vehicle and subset $subset " }
                         subTourExpr.clear()
                     }
                 }
@@ -386,6 +397,7 @@ class FairMTSPCallback(
 //        projectionPoints.add(listOf(x, y, x.pow(alpha) * y.pow(1 - alpha)))
         if (y > tolerance) projectionPoints.add(listOf(z.pow(pNorm) / (y.pow(pNorm - 1.0)), y, z))
         if (x > tolerance) projectionPoints.add(listOf(x, z.pow(pNorm / (pNorm - 1)) / x.pow(1.0 / (pNorm - 1)), z))
+//        log.info { "$x, $y, $z, $projectionPoints" }
         return projectionPoints
     }
 }

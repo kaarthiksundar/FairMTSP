@@ -2,14 +2,15 @@ package fairMTSP.solver
 
 import fairMTSP.data.Instance
 import fairMTSP.data.Parameters
-import fairMTSP.main.Graph
 import fairMTSP.data.Result
 import fairMTSP.main.FairMTSPException
+import fairMTSP.main.Graph
 import fairMTSP.main.numVertices
 import ilog.concert.IloIntVar
 import ilog.concert.IloLinearNumExpr
 import ilog.concert.IloNumVar
 import ilog.cplex.IloCplex
+import ilog.cplex.IloCplex.BooleanParam
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jgrapht.graph.DefaultWeightedEdge
 import kotlin.math.pow
@@ -56,6 +57,7 @@ class BranchAndCutSolver(
                     cplex.boolVar("x_${vehicle}_${edge}")
             }
         }
+
 
         vertexVariable = (0 until instance.numVehicles).associateWith { vehicle ->
             graph.vertexSet().associateWith { vertex ->
@@ -417,8 +419,17 @@ class BranchAndCutSolver(
     fun solve(): Result {
         cplex.setParam(IloCplex.Param.MIP.Display, 3)
         cplex.setParam(IloCplex.Param.TimeLimit, timeLimitInSeconds)
-        cplex.setParam(IloCplex.Param.Emphasis.MIP, 2)
+//        cplex.setParam(BooleanParam(1132, "MyParamName"), true)
+//        cplex.setParam(IloCplex.Param.Emphasis.MIP, 5)
+        cplex.setParam(IloCplex.Param.MIP.Strategy.Search, 1)
         val startTime = cplex.cplexTime
+        val x = edgeVariable.values.flatMap { it.values }.toTypedArray()
+        val xPriority = List(x.size) { 1 }
+        cplex.setPriorities(x, xPriority.toIntArray())
+
+        val y = vertexVariable.values.flatMap { it.values }.toTypedArray()
+        val yPriority = List(y.size) { 2 }
+        cplex.setPriorities(y, yPriority.toIntArray())
         if (!cplex.solve()) {
             computationTime = cplex.cplexTime.minus(startTime)
             throw FairMTSPException("Fair M-TSP is infeasible for fairness coefficient: $fairnessCoefficient")
