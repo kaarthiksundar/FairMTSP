@@ -36,19 +36,20 @@ class FairMTSPCallback(
     override fun invoke(context: Context) {
 
         try {
-            if (context.inRelaxation())
+            if (context.inRelaxation()) {
                 fractionalSECs(context)
-
-            if (context.inCandidate()) {
-                integerSECs(context)
-                if (objectiveType == "eps-fair")
-                    fairnessOuterApproximations(context)
-                if (objectiveType == "p-norm")
-                    pNormOuterApproximations(context)
             }
         } catch (e: Exception) {
-            println("Exception from callback: $e")
+            println(e)
             throw e
+        }
+
+        if (context.inCandidate()) {
+            integerSECs(context)
+            if (objectiveType == "eps-fair")
+                fairnessOuterApproximations(context)
+            if (objectiveType == "p-norm")
+                pNormOuterApproximations(context)
         }
     }
 
@@ -165,10 +166,11 @@ class FairMTSPCallback(
 
     private fun fractionalSECs(context: Context) {
         val m: IloCplexModeler = context.cplex
-        val tolerance = 1e-5
+        val tolerance = 1e-6
 
         val graph = instance.graph
         val numVehicles = instance.numVehicles
+
 
         (0 until numVehicles).forEach { vehicle ->
             val activeVertices =
@@ -189,7 +191,6 @@ class FairMTSPCallback(
             }
 
             val connectedSets = ConnectivityInspector(subGraph).connectedSets().toList()
-
             if (connectedSets.size == 1 && subGraph.vertexSet().size != 1) {
                 val gomoryHuCutTree = GusfieldGomoryHuCutTree(subGraph)
                 val minCut = gomoryHuCutTree.calculateMinCut()
@@ -362,7 +363,7 @@ class FairMTSPCallback(
 
             if (z - x.pow(alpha) * y.pow(1.0 - alpha) > tolerance) {
                 val projectionPoints = getpNormProjectionPoints(x, y, z)
-                projectionPoints.forEach { (x0, y0, z0) ->
+                projectionPoints.forEach { (x0, y0, _) ->
                     val cutExpr: IloLinearNumExpr = m.linearNumExpr()
                     cutExpr.addTerms(
                         listOf(
@@ -387,13 +388,13 @@ class FairMTSPCallback(
 
     private fun getpNormProjectionPoints(x: Double, y: Double, z: Double): List<List<Double>> {
         /* z <= x^alpha * y^(1-alpha) */
-        val alpha = 1.0 / pNorm
+//        val alpha = 1.0 / pNorm
         val tolerance = 1e-5
         val projectionPoints: MutableList<List<Double>> = mutableListOf()
 //        projectionPoints.add(listOf(x, y, x.pow(alpha) * y.pow(1 - alpha)))
         if (y > tolerance) projectionPoints.add(listOf(z.pow(pNorm) / (y.pow(pNorm - 1.0)), y, z))
         if (x > tolerance) projectionPoints.add(listOf(x, z.pow(pNorm / (pNorm - 1)) / x.pow(1.0 / (pNorm - 1)), z))
-//        log.info { "$x, $y, $z, $projectionPoints" }
+
         return projectionPoints
     }
 }

@@ -101,7 +101,7 @@ class Controller:
                     "-obj", self.objective,
                     "-fc", str(fc),
                     "-p", str(p),
-                    "-t", str(7200)
+                    "-t", str(3600)
                 ])
                 f_out.write(' '.join(cmd))
                 f_out.write('\n')
