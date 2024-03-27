@@ -10,7 +10,6 @@ import ilog.concert.IloIntVar
 import ilog.concert.IloLinearNumExpr
 import ilog.concert.IloNumVar
 import ilog.cplex.IloCplex
-import ilog.cplex.IloCplex.BooleanParam
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jgrapht.graph.DefaultWeightedEdge
 import kotlin.math.pow
@@ -319,6 +318,16 @@ class BranchAndCutSolver(
         }
     }
 
+    private fun addBranchingPriorities() {
+        val x = edgeVariable.values.flatMap { it.values }.toTypedArray()
+        val xPriority = List(x.size) { 1 }
+        cplex.setPriorities(x, xPriority.toIntArray())
+
+        val y = vertexVariable.values.flatMap { it.values }.toTypedArray()
+        val yPriority = List(y.size) { 2 }
+        cplex.setPriorities(y, yPriority.toIntArray())
+    }
+
     private fun setupCallback() {
         val cb = FairMTSPCallback(
             instance = instance,
@@ -419,17 +428,14 @@ class BranchAndCutSolver(
     fun solve(): Result {
         cplex.setParam(IloCplex.Param.MIP.Display, 3)
         cplex.setParam(IloCplex.Param.TimeLimit, timeLimitInSeconds)
+//        cplex.setParam(IloCplex.Param.Threads, 10)
+//        cplex.setParam(IloCplex.Param.MIP.Limits.CutsFactor, 0.0)
 //        cplex.setParam(BooleanParam(1132, "MyParamName"), true)
-//        cplex.setParam(IloCplex.Param.Emphasis.MIP, 5)
-        cplex.setParam(IloCplex.Param.MIP.Strategy.Search, 1)
+//        cplex.setParam(IloCplex.Param.Emphasis.MIP, IloCplex.MIPEmphasis.Balanced)
+        cplex.setParam(IloCplex.Param.MIP.Strategy.Search, IloCplex.MIPSearch.Traditional)
+//        cplex.setParam(IloCplex.Param.Parallel, IloCplex.ParallelMode.Opportunistic)
+        addBranchingPriorities()
         val startTime = cplex.cplexTime
-        val x = edgeVariable.values.flatMap { it.values }.toTypedArray()
-        val xPriority = List(x.size) { 1 }
-        cplex.setPriorities(x, xPriority.toIntArray())
-
-        val y = vertexVariable.values.flatMap { it.values }.toTypedArray()
-        val yPriority = List(y.size) { 2 }
-        cplex.setPriorities(y, yPriority.toIntArray())
         if (!cplex.solve()) {
             computationTime = cplex.cplexTime.minus(startTime)
             throw FairMTSPException("Fair M-TSP is infeasible for fairness coefficient: $fairnessCoefficient")

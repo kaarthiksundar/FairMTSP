@@ -3,10 +3,8 @@ package fairMTSP.solver
 import fairMTSP.data.Instance
 import fairMTSP.main.Graph
 import fairMTSP.main.numVertices
-import ilog.concert.IloException
 import ilog.concert.IloLinearNumExpr
 import ilog.concert.IloNumVar
-import ilog.cplex.CpxException
 import ilog.cplex.IloCplex
 import ilog.cplex.IloCplex.Callback.Context
 import ilog.cplex.IloCplexModeler
@@ -38,9 +36,8 @@ class FairMTSPCallback(
     override fun invoke(context: Context) {
 
         try {
-            if (context.inRelaxation()) {
+            if (context.inRelaxation())
                 fractionalSECs(context)
-            }
 
             if (context.inCandidate()) {
                 integerSECs(context)
@@ -49,11 +46,10 @@ class FairMTSPCallback(
                 if (objectiveType == "p-norm")
                     pNormOuterApproximations(context)
             }
-        } catch (e: CpxException) {
-            println(e)
+        } catch (e: Exception) {
+            println("Exception from callback: $e")
             throw e
         }
-
     }
 
     private fun roundingHeuristic(context: Context) {
@@ -221,7 +217,7 @@ class FairMTSPCallback(
                             )
                             subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
                             context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, true)
-//                            log.debug { "adding fractional SEC for vehicle $vehicle and subset $vertexSubset " }
+                            log.debug { "adding fractional SEC for vehicle $vehicle and subset $vertexSubset " }
                             subTourExpr.clear()
                         }
                     }
@@ -245,7 +241,7 @@ class FairMTSPCallback(
                         )
                         subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
                         context.addUserCut(m.le(subTourExpr, 0.0), IloCplex.CutManagement.UseCutPurge, true)
-//                      log.debug { "adding fractional SEC for vehicle $vehicle and subset $subset " }
+                        log.debug { "adding fractional SEC for vehicle $vehicle and subset $subset " }
                         subTourExpr.clear()
                     }
                 }
@@ -307,7 +303,7 @@ class FairMTSPCallback(
                     )
                     subTourExpr.addTerm(1.0, vertexVariable[vehicle]?.get(vertex))
                     context.rejectCandidate(m.le(subTourExpr, 0.0))
-//                    log.debug { "adding integer SEC for vehicle $vehicle and subset $vertexSubset " }
+                    log.debug { "adding integer SEC for vehicle $vehicle and subset $vertexSubset " }
                     subTourExpr.clear()
                 }
             }

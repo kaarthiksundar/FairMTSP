@@ -41,8 +41,8 @@ dependencies {
     implementation("org.jgrapht:jgrapht-core:1.5.1")
 
     // CPLEX
-    val cplexJarPath: String by project
-//    val cplexJarPath = "/Users/kaarthik/Applications/CPLEX_Studio1210/cplex/lib/cplex.jar"
+//    val cplexJarPath: String by project
+    val cplexJarPath = "/Users/kaarthik/Applications/CPLEX_Studio2211/cplex/lib/cplex.jar"
     implementation(files(cplexJarPath))
 
     // JSON serialization
@@ -57,10 +57,6 @@ dependencies {
     implementation(kotlin("stdlib-common"))
     implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.4")
     testImplementation(kotlin("test"))
-
-//    // Jackson library to work with JSON/YAML.
-//    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.12.0")
-//    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.11.0")
 
 }
 
