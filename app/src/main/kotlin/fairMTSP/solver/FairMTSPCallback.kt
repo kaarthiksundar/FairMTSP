@@ -179,7 +179,9 @@ class FairMTSPCallback(
                 }.toMap()
             val activeEdges =
                 edgeVariable[vehicle]!!.map { Pair(it.key, context.getRelaxationPoint(it.value)) }.filter {
-                    it.second > tolerance
+                    it.second > tolerance &&
+                            activeVertices.contains(graph.getEdgeSource(it.first)) &&
+                            activeVertices.contains(graph.getEdgeTarget(it.first))
                 }.toMap()
 
             val subGraph = Graph(DefaultWeightedEdge::class.java)
