@@ -27,13 +27,13 @@ class Config:
         self.data_path = get_data_path()
         self.jar_path = os.path.join(
             self.base_path, 'app', 'build', 'libs', 'uber.jar')
-        self.instance_file_path = os.path.join(self.base_path, "final-results", "instances.csv")
 
         self.min_runs = False
         self.minmax_runs = False
         self.pNorm_runs = False
         self.epsFair_runs = False
         self.deltaFair_runs = False
+        self.seattle_runs = False
 
 def get_base_path() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../..'))
@@ -70,15 +70,70 @@ class Controller:
         ]
         self._prepare_uberjar()
 
-        config_to_objective = {"min_runs": "min","minmax_runs": "min-max","pNorm_runs": "p-norm",
-                               "epsFair_runs": "eps-fair","deltaFair_runs": "delta-fair"}
+        if self.config.seattle_runs:
+            self._seattle_runs()
+        
+        else:
+            config_to_objective = {"min_runs": "min","minmax_runs": "min-max","pNorm_runs": "p-norm",
+                                "epsFair_runs": "eps-fair", "deltaFair_runs": "delta-fair"}
 
-        for config, objective in config_to_objective.items():
-            if getattr(self.config, config):
-                self.objective = objective
-                break
+            for config, objective in config_to_objective.items():
+                if getattr(self.config, config):
+                    self.objective = objective
+                    break
 
-        self._setup_runs()
+            self._setup_runs()
+
+    def _seattle_runs(self):
+        self.objective = ['eps-fair','delta-fair']
+        fairnessCoefficient = [0.1, 0.3, 0.5, 0.7, 0.9]
+        vehicle = 4
+        cases =  [('seattle.tsp', vehicle, obj, fc) for obj in self.objective for fc in fairnessCoefficient]
+
+        runs_file_path = os.path.join(
+            self.config.script_folder_path, 'seattle_runs.txt')
+
+        with open(runs_file_path, 'w') as f_out:
+            for instance, vehicle, obj, fc in cases:
+                cmd = [c for c in self._base_cmd]
+                cmd.extend([
+                    "-n", instance,
+                    "-path", "./data/ "
+                    "-r", "./results/ "
+                    "-v", str(vehicle),
+                    "-obj", obj,
+                    "-fc", str(fc),
+                    "-p", str(0.0),
+                    "-t", str(3600)
+                ])
+                f_out.write(' '.join(cmd))
+                f_out.write('\n')
+
+        rt_path = os.path.join(self.config.base_path, 'runs', 'seattle')
+        os.makedirs(rt_path, exist_ok=True)
+        shutil.copy(self.config.jar_path, os.path.join(rt_path, 'uber.jar'))
+        runs_file_name = 'seattle_runs.txt'
+        for f in [runs_file_name, 'submit-batch.sh', 'slurm-batch-job.sh']:
+            src_path = os.path.join(self.config.script_folder_path, f)
+            dst_path = os.path.join(rt_path, f)
+            shutil.copy(src_path, dst_path)
+
+        os.remove(os.path.join(self.config.script_folder_path, runs_file_name))
+        log.info('copied runs file and shell scripts to {}'.format(rt_path))
+
+        test_data_path = os.path.join(rt_path, 'data')
+        os.makedirs(test_data_path, exist_ok=True)
+        for instance,_,_,_ in cases:
+            src = os.path.join(self.config.data_path, instance)
+            dst = os.path.join(test_data_path, instance)
+            shutil.copy(src, dst)
+
+
+        for name in ['results', 'logs', 'output']:
+            folder_path = os.path.join(rt_path, name)
+            os.makedirs(folder_path, exist_ok=True)
+
+        log.info('Test folder completed')
 
 
     def _setup_runs(self):
@@ -168,8 +223,8 @@ def handle_command_line():
                         help="generate runs for eps-fair objective")
     parser.add_argument("-deltaFair", "--deltaFair", action="store_true",
                         help="generate runs for delta-fair objective")
-    parser.add_argument("-i", "--instancefilepath", type=str,
-                        help="path to csv file with instances to run")
+    parser.add_argument("-seattle", "--seattle", action="store_true",
+                        help="generate runs for Seattle instance")
 
     args = parser.parse_args()
     config = Config()
@@ -179,8 +234,7 @@ def handle_command_line():
     config.pNorm_runs = args.pNorm
     config.epsFair_runs = args.epsFair
     config.deltaFair_runs = args.deltaFair
-    if args.instancefilepath:
-        config.instance_file_path = args.instancefilepath
+    config.seattle_runs = args.seattle
 
     return config
 
