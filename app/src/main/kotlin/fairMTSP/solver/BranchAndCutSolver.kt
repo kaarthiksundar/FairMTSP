@@ -376,7 +376,23 @@ class BranchAndCutSolver(
             val tour = mutableListOf(instance.depot)
             var currentVertex = instance.depot
             isVisitedVertex[instance.depot] = true
-            if (activeVertices.size > 1) {
+            if (activeVertices.size == 2) {
+                val incidentEdges = activeEdges.filter {
+                    (graph.getEdgeSource(it) == currentVertex ||
+                            graph.getEdgeTarget(it) == currentVertex) &&
+                            isVisitedEdge[it] == false
+                }
+                val edge = incidentEdges.first()
+                isVisitedEdge[edge] = true
+                val nextVertex = if (graph.getEdgeSource(edge) == currentVertex)
+                    graph.getEdgeTarget(edge)
+                else
+                    graph.getEdgeSource(edge)
+                tour.add(nextVertex)
+                isVisitedVertex[nextVertex] = true
+                tour.add(instance.depot)
+            }
+            if (activeVertices.size > 2) {
                 for (i in 1..activeVertices.size) {
                     val incidentEdges = activeEdges.filter {
                         (graph.getEdgeSource(it) == currentVertex ||
