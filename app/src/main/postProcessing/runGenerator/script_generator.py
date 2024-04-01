@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+import numpy as np
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class Config:
         self.epsFair_runs = False
         self.deltaFair_runs = False
         self.seattle_runs = False
+        self.COF_runs = False
 
 def get_base_path() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../..'))
@@ -72,7 +74,8 @@ class Controller:
 
         if self.config.seattle_runs:
             self._seattle_runs()
-        
+        elif self.config.COF_runs:
+            self._COF_runs()
         else:
             config_to_objective = {"min_runs": "min","minmax_runs": "min-max","pNorm_runs": "p-norm",
                                 "epsFair_runs": "eps-fair", "deltaFair_runs": "delta-fair"}
@@ -103,7 +106,7 @@ class Controller:
                     "-v", str(vehicle),
                     "-obj", obj,
                     "-fc", str(fc),
-                    "-p", str(0.0),
+                    "-p", str(0),
                     "-t", str(3600)
                 ])
                 f_out.write(' '.join(cmd))
@@ -135,11 +138,9 @@ class Controller:
 
         log.info('Test folder completed')
 
-
     def _setup_runs(self):
         cases = self._collect_cases()
         self._generate_setup(cases)
-
 
     def _generate_setup(self, cases):
         runs_file_path = os.path.join(
@@ -167,12 +168,71 @@ class Controller:
         instance_names = ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']
         vehicles_count = [3,4,5]
 
-        pNorm = [2,3,5,10] if self.objective == "p-norm" else [1]
-        fairnessCoefficient = [0.1, 0.3, 0.5, 0.7, 0.9] if self.objective in ["eps-fair", "delta-fair"] else [0.0]
+        instance_names = ['eil51.tsp']
+        vehicles_count = [5]
 
+        pNorm = [2,3,5,10] if self.objective == "p-norm" else [1]
+        fairnessCoefficient = np.arange(0,1,0.05) if self.objective in ["eps-fair", "delta-fair"] else [0.0]
+        fairnessCoefficient = [round(x,2) for x in fairnessCoefficient]
         return [(instance, vehicle, fc, p) for instance in instance_names for vehicle in vehicles_count
                                             for fc in fairnessCoefficient for p in pNorm]
+    
+    def _COF_runs(self):
+        cases = self._COF_cases()
+        runs_file_path = os.path.join(
+        self.config.script_folder_path, 'COF_runs.txt')
 
+        with open(runs_file_path, 'w') as f_out:
+            for instance, vehicle, objective, fc, p in cases:
+                cmd = [c for c in self._base_cmd]
+                cmd.extend([
+                    "-n", instance,
+                    "-path", "./data/ "
+                    "-r", "./results/ "
+                    "-v", str(vehicle),
+                    "-obj", objective,
+                    "-fc", str(fc),
+                    "-p", str(p),
+                    "-t", str(3600)
+                ])
+                f_out.write(' '.join(cmd))
+                f_out.write('\n')
+
+        rt_path = os.path.join(self.config.base_path, 'runs', 'COF')
+        os.makedirs(rt_path, exist_ok=True)
+        shutil.copy(self.config.jar_path, os.path.join(rt_path, 'uber.jar'))
+        runs_file_name = 'COF_runs.txt'
+        for f in [runs_file_name, 'submit-batch.sh', 'slurm-batch-job.sh']:
+            src_path = os.path.join(self.config.script_folder_path, f)
+            dst_path = os.path.join(rt_path, f)
+            shutil.copy(src_path, dst_path)
+
+        os.remove(os.path.join(self.config.script_folder_path, runs_file_name))
+        log.info('copied runs file and shell scripts to {}'.format(rt_path))
+
+        test_data_path = os.path.join(rt_path, 'data')
+        os.makedirs(test_data_path, exist_ok=True)
+        for instance,_,_,_,_ in cases:
+            src = os.path.join(self.config.data_path, instance)
+            dst = os.path.join(test_data_path, instance)
+            shutil.copy(src, dst)
+
+
+        for name in ['results', 'logs', 'output']:
+            folder_path = os.path.join(rt_path, name)
+            os.makedirs(folder_path, exist_ok=True)
+
+        log.info('Test folder completed')
+
+    def _COF_cases(self):
+        instance_names = ['eil51.tsp']
+        vehicles_count = [5]
+        pNorm = [1]
+        fairnessCoefficient = np.arange(0,1,0.05) 
+        self.objective = ["eps-fair", "delta-fair"]
+        fairnessCoefficient = [round(x,2) for x in fairnessCoefficient]
+        return [(instance, vehicle, obj, fc, p) for instance in instance_names for vehicle in vehicles_count
+                                            for obj in self.objective for fc in fairnessCoefficient for p in pNorm]
 
     def _prepare_test_folder(self, cases):
         rt_path = os.path.join(self.config.base_path, 'runs', self.objective)
@@ -201,7 +261,6 @@ class Controller:
 
         log.info('Test folder completed')
 
-
     def _prepare_uberjar(self):
         os.chdir(self.config.base_path)
         subprocess.check_call(['gradle', 'clean', 'cleanlogs', 'uberjar'])
@@ -225,6 +284,8 @@ def handle_command_line():
                         help="generate runs for delta-fair objective")
     parser.add_argument("-seattle", "--seattle", action="store_true",
                         help="generate runs for Seattle instance")
+    parser.add_argument("-COF", "--COF", action="store_true",
+                        help="generate COF instance of eps/delta Fair")
 
     args = parser.parse_args()
     config = Config()
@@ -235,6 +296,7 @@ def handle_command_line():
     config.epsFair_runs = args.epsFair
     config.deltaFair_runs = args.deltaFair
     config.seattle_runs = args.seattle
+    config.COF_runs = args.COF
 
     return config
 

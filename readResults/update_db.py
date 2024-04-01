@@ -64,7 +64,7 @@ class Controller:
        
         for table_name in table_names:
             numVehicles = int(table_name[-1])
-            col_names = ['instanceName', 'numTargets' , 'objective', 'pNorm', 'fairnessCoefficient'] + [f'l{i}' for i in range(1, numVehicles + 1)] + ['SumOfTours', 'GapToOpt', 'computationTimeInSec', 'GiniIndex', 'JainIndex', 'normIndex'] 
+            col_names = ['instanceName', 'numVehicles', 'numTargets' , 'objective', 'pNorm', 'fairnessCoefficient'] + [f'l{i}' for i in range(1, numVehicles + 1)] + ['SumOfTours', 'GapToOpt', 'computationTimeInSec', 'GiniIndex', 'JainIndex', 'normIndex'] 
             create_table(self._cursor, table_name, col_names)
             
 
@@ -79,7 +79,7 @@ class Controller:
                         if result_dict['numVehicles'] != numVehicles:
                             continue
                 
-                        table_values = [result_dict['instanceName'], result_dict['numVertices']-1,  result_dict['objectiveType'], result_dict['pNorm'], result_dict['fairnessCoefficient']]+ result_dict['tourCost'] + [sum(result_dict['tourCost']), round(result_dict['optimalityGapPercent']/100, 2), result_dict['computationTimeInSec'], result_dict['giniIndex'], result_dict['jainIndex'], result_dict['normIndex']]
+                        table_values = [result_dict['instanceName'], result_dict['numVehicles'], result_dict['numVertices']-1,  result_dict['objectiveType'], result_dict['pNorm'], result_dict['fairnessCoefficient']]+ result_dict['tourCost'] + [sum(result_dict['tourCost']), round(result_dict['optimalityGapPercent']/100, 2), result_dict['computationTimeInSec'], result_dict['giniIndex'], result_dict['jainIndex'], result_dict['normIndex']]
                         values = [f"'{v}'" for v in table_values]
                      
                         cmd = f"""
