@@ -12,6 +12,8 @@ app/build/*
 runs/*
 !*.gitkeep
 results
+*cache
+*extra
 
 # Mac
 **/.DS_Store
