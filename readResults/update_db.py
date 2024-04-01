@@ -49,48 +49,45 @@ class Controller:
     def run(self):
         self._connection = sqlite3.connect(self.config.db_path)
         self._cursor = self._connection.cursor()
+        table_names = ['vehi3','vehi4','vehi5']
+        dirList = ['min', 'minmax', 'pNorm', 'epsFair', 'deltaFair']
+        for name in table_names:
+            for dir in dirList:
+                self._write_result_table(name, dir)
 
-        self._write_result_table()
+        self._write_result_table('COF', 'COF')
 
         self._connection.commit()
         self._cursor.close()
         self._connection.close()
         log.info("result addition completed")
 
-    def _write_result_table(self):
-
-        table_names = ['vehi3','vehi4','vehi5']
-        objectiveList = ['min', 'minmax', 'pNorm', 'epsFair', 'deltaFair']
-       
-        for table_name in table_names:
-            numVehicles = int(table_name[-1])
-            col_names = ['instanceName', 'numVehicles', 'numTargets' , 'objective', 'pNorm', 'fairnessCoefficient'] + [f'l{i}' for i in range(1, numVehicles + 1)] + ['SumOfTours', 'GapToOpt', 'computationTimeInSec', 'GiniIndex', 'JainIndex', 'normIndex'] 
-            create_table(self._cursor, table_name, col_names)
+    def _write_result_table(self, table_name, dir_name):
             
+            col_names = ['instanceName', 'numVehicles', 'numTargets' , 'objective', 'pNorm', 'fairnessCoefficient', 'LengthOfTours', 'SumOfTours', 'GapToOpt', 'computationTimeInSec', 'GiniIndex', 'JainIndex', 'normIndex'] 
+            create_table(self._cursor, table_name, col_names)
 
-            for objective in objectiveList:
-                objectiveDir = os.path.join(self.config.results_path, objective)
-                for f in os.listdir(objectiveDir):
-                    if not f.endswith(".json"):
-                        continue
-                    
-                    with open(os.path.join(objectiveDir, f),'r') as fin:
-                        result_dict = json.load(fin)
-                        if result_dict['numVehicles'] != numVehicles:
-                            continue
+            dir_path = os.path.join(self.config.results_path, dir_name)
+            for f in os.listdir(dir_path):
+                if not f.endswith(".json"):
+                    continue
                 
-                        table_values = [result_dict['instanceName'], result_dict['numVehicles'], result_dict['numVertices']-1,  result_dict['objectiveType'], result_dict['pNorm'], result_dict['fairnessCoefficient']]+ result_dict['tourCost'] + [sum(result_dict['tourCost']), round(result_dict['optimalityGapPercent']/100, 2), result_dict['computationTimeInSec'], result_dict['giniIndex'], result_dict['jainIndex'], result_dict['normIndex']]
-                        values = [f"'{v}'" for v in table_values]
-                     
-                        cmd = f"""
-                            INSERT INTO {table_name}
-                            VALUES ({",".join(values)})"""
-                        self._cursor.execute(cmd)
+                with open(os.path.join(dir_path, f),'r') as fin:
+                    result_dict = json.load(fin)
+                    if table_name[-1] in ['3','4','5'] and result_dict['numVehicles'] != int(table_name[-1]):
+                        continue
+            
+                    table_values = [result_dict['instanceName'], result_dict['numVehicles'], result_dict['numVertices']-1,  result_dict['objectiveType'], result_dict['pNorm'], result_dict['fairnessCoefficient'], result_dict['tourCost'], sum(result_dict['tourCost']), round(result_dict['optimalityGapPercent']/100, 2), result_dict['computationTimeInSec'], result_dict['giniIndex'], result_dict['jainIndex'], result_dict['normIndex']]
+                    values = [f"'{v}'" for v in table_values]
+                    
+                    cmd = f"""
+                        INSERT INTO {table_name}
+                        VALUES ({",".join(values)})"""
+                    self._cursor.execute(cmd)
 
-                        log.info(f"added results for {f}")
+                    log.info(f"added results for {f}")
                        
-
-
+    
 
 def main():
     logging.basicConfig(format='%(asctime)s %(levelname)s--: %(message)s',
