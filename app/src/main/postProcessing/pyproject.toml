@@ -11,6 +11,7 @@ networkx = "^3.2.1"
 matplotlib = "^3.8.2"
 osmnx = "^1.9.1"
 argparse = "^1.4.0"
+numpy = "^1.26.4"
 
 
 [build-system]
