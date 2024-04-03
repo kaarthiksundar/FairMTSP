@@ -228,11 +228,11 @@ class Controller:
             for instance in ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
                 for objective in ['eps-fair', 'delta-fair']:
                     for numVehicle in [3,4,5]:
-                        fairnessCoefficients = self.getFairnessIndex(instance, numVehicle, 'min-max')
+                        fairnessIndex = self.getFairnessIndex(instance, numVehicle, 'min-max')
                         if objective == 'eps-fair':
-                            fc = round(floor(float(fairnessCoefficients['normIndex'])*10000)/10000,4)
+                            fc = round(floor(float(fairnessIndex['normIndex'])*10000)/10000,4)
                         elif objective == 'delta-fair':
-                            fc = round(ceil(float(fairnessCoefficients['giniIndex'])*10000)/10000,4)
+                            fc = round(ceil(float(fairnessIndex['giniIndex'])*10000)/10000,4)
                    
                         cmd = [c for c in self._base_cmd]
                         cmd.extend([
@@ -283,11 +283,11 @@ class Controller:
             for instance in ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
                 for objective in ['eps-fair', 'delta-fair']:
                     for numVehicle in [3,4,5]:
-                        fairnessCoefficients = self.getFairnessIndex(instance, numVehicle, 'p-norm', pNorm=2)
+                        fairnessIndex = self.getFairnessIndex(instance, numVehicle, 'p-norm', pNorm=2)
                         if objective == 'eps-fair':
-                            fc = round(floor(float(fairnessCoefficients['normIndex'])*10000)/10000,4)
+                            fc = round(floor(float(fairnessIndex['normIndex'])*10000)/10000,4)
                         elif objective == 'delta-fair':
-                            fc = round(ceil(float(fairnessCoefficients['giniIndex'])*10000)/10000,4)
+                            fc = round(ceil(float(fairnessIndex['giniIndex'])*10000)/10000,4)
                    
                         cmd = [c for c in self._base_cmd]
                         cmd.extend([
@@ -363,7 +363,7 @@ class Controller:
                     "-v", str(vehicle),
                     "-obj", obj,
                     "-fc", str(fc),
-                    "-p", str(0),
+                    "-p", str(1),
                     "-t", str(3600)
                 ])
                 f_out.write(' '.join(cmd))
