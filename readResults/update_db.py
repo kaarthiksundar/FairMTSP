@@ -55,7 +55,10 @@ class Controller:
             for dir in dirList:
                 self._write_result_table(name, dir)
 
-        self._write_result_table('COF', 'COF')
+        self._write_result_table('vehi5', 'COF')
+        for name in table_names:
+            self._write_result_table(name, 'minmaxFair')
+            self._write_result_table(name, 'pNormFair')
 
         self._connection.commit()
         self._cursor.close()
