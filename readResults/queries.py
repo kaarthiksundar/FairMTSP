@@ -80,19 +80,19 @@ class databaseToCSV():
 
                         if objective == 'min-max':
                             comp_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle))
-                            data.append(round(comp_time/min_time, 2))
+                            data.append(round(comp_time/min_time, 2)) if comp_time<3600 else data.append('-')
 
                         if objective == 'p-norm':
                             pNorm = [2,3,5,10]
                             for p in pNorm:
                                 comp_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle, pNorm=p))
-                                data.append(round(comp_time/min_time, 2))
+                                data.append(round(comp_time/min_time, 2)) if comp_time<3600 else data.append('-')
 
                         if objective in ['eps-fair', 'delta-fair']:
                             fairnessCoefficient = [0.1,0.3,0.5,0.7,0.9] 
                             for fc in fairnessCoefficient:
                                 comp_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc))
-                                data.append(round(comp_time/min_time, 2))
+                                data.append(round(comp_time/min_time, 2)) if comp_time<3600 else data.append('-')
                         
                     csv_writer.writerow(data)
 
@@ -142,8 +142,8 @@ class databaseToCSV():
             csv_writer = csv.writer(csvfile)
             instance_name = 'eil51.tsp'
             numVehicle = 5
-            min_cost = float(self._getSumofTours(instance_name=instance_name, objective='min', numVehicles=numVehicle))
-            minmax_cost = float(self._getSumofTours(instance_name=instance_name, objective='min-max', numVehicles=numVehicle))
+            min_cost = self._getSumofTours(instance_name=instance_name, objective='min', numVehicles=numVehicle)
+            minmax_cost = self._getSumofTours(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
             minmax_COF = round((minmax_cost-min_cost)/min_cost, 2)
             csv_writer.writerows([['instanceName', instance_name], ['numVehicles', numVehicle ], 
                                   ['minmaxCOF', minmax_COF],['fairnessCoefficient', 'epsCOF', 'deltaCOF']])
@@ -153,7 +153,7 @@ class databaseToCSV():
             for fc in fairnessCoefficient:
                 data = [fc]
                 for objective in ['eps-fair', 'delta-fair']:   
-                    cost = float(self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc))
+                    cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
                     data.append(round((cost-min_cost)/min_cost, 2))
                 csv_writer.writerow(data)
         
@@ -192,6 +192,40 @@ class databaseToCSV():
                             cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
                             fairnessIndex = self._getFairnessIndex(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
                             data.extend([comp_time, cost, fc, round(fairnessIndex['giniIndex'],5)])
+
+                    csv_writer.writerow(data)
+
+    def export_minmaxFair_final(self):
+        csv_filename = os.path.join(self.results_path, 'minmaxFair_final.csv')
+
+        with open (csv_filename, 'w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_writer.writerow(['Instance Name', 'Number of Vehicles', 'minmax cost', 'minmaxCOF', 'minmax eps', 'minmax delta', 
+                                 'epsFair cost', 'epsFair COF', 'deltaFair cost', 'deltaFair COF' ])
+            
+            data = []
+            for instance_name in ['bays29.tsp', 'eil51.tsp']:
+                for numVehicle in [3,4,5]:
+                    data = [instance_name, numVehicle]
+                    
+                    min_cost = self._getSumofTours(instance_name=instance_name, objective='min', numVehicles=numVehicle)
+
+                    comp_time = self._getComputationTime(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
+                    if float(comp_time) > 3600:
+                        continue
+                    minmax_cost = self._getSumofTours(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
+                    minmax_fairnessIndex = self._getFairnessIndex(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
+                    data = [instance_name, numVehicle, minmax_cost, round((minmax_cost-min_cost)/min_cost, 3) ,round(minmax_fairnessIndex['normIndex'],5), round(minmax_fairnessIndex['giniIndex'],5)]
+
+                    for objective in ['eps-fair', 'delta-fair']:
+                        if objective == 'eps-fair':
+                            fc = round(floor(float(minmax_fairnessIndex['normIndex'])*10000)/10000,4)
+                            cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
+                            data.extend([cost, round((cost-min_cost)/min_cost, 3)])
+                        if objective == 'delta-fair':
+                            fc = round(ceil(float(minmax_fairnessIndex['giniIndex'])*10000)/10000,4)
+                            cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
+                            data.extend([cost, round((cost-min_cost)/min_cost, 3)])
 
                     csv_writer.writerow(data)
 
@@ -246,14 +280,15 @@ def main():
         
         csv_filename = os.path.join(results_path,'table1.csv') 
         dataTransfer = databaseToCSV(db_path, results_path)
-        # dataTransfer.export_computation_time_to_csv(table_objective='p-norm')
-        # dataTransfer.export_computation_time_to_csv(table_objective='eps-fair')
-        # dataTransfer.export_computation_time_to_csv(table_objective='delta-fair')
+        dataTransfer.export_computation_time_to_csv(table_objective='p-norm')
+        dataTransfer.export_computation_time_to_csv(table_objective='eps-fair')
+        dataTransfer.export_computation_time_to_csv(table_objective='delta-fair')
         # dataTransfer.export_all_COF_to_csv()
         # dataTransfer.export_COF_plotdata()
-        dataTransfer.export_minmaxFair_to_csv()
-        dataTransfer.export_pNormFair_to_csv()
-        dataTransfer._closeConnection()
+        # dataTransfer.export_minmaxFair_to_csv()
+        # dataTransfer.export_pNormFair_to_csv()
+        # dataTransfer.export_minmaxFair_final()
+        # dataTransfer._closeConnection()
     
     
     except ScriptException as se:
