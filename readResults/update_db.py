@@ -1,5 +1,5 @@
 import os, logging, json
-import argparse, sqlite3
+import sqlite3
 
 log = logging.getLogger(__name__)
 
