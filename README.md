@@ -1,4 +1,4 @@
-## Fair Multiple Traveling Salesmam Problem (MTSP)
+## Fair Multiple Traveling Salesman Problem (MTSP)
 
 Code for computational experiments of the paper
 "Equitable Routing - Rethinking the Mutiple Traveling Salesman Problem" be made available in arXiv.
