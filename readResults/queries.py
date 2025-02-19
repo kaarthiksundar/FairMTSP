@@ -162,6 +162,30 @@ class databaseToCSV():
         
             csv_writer.writerow([1.0, 0.28, 0.0])
 
+    def export_ParetoFront_plotdata(self):
+
+        csv_filename = os.path.join(self.results_path, 'ParetoFront_plotdata.csv')
+
+        with open(csv_filename, 'w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            instance_name = 'eil51.tsp'
+            numVehicle = 5
+            min_cost = self._getSumofTours(instance_name=instance_name, objective='min', numVehicles=numVehicle)
+            minmax_cost = self._getSumofTours(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
+            csv_writer.writerows([['instanceName', instance_name], ['numVehicles', numVehicle ], ['minCost', min_cost],
+                                  ['minmaxCost', minmax_cost],['fairnessCoefficient', 'epsCost', 'deltaCost']])
+
+            fairnessCoefficient = [round(x,2) for x in np.arange(0,1,0.05)]
+
+            for fc in fairnessCoefficient:
+                data = [fc]
+                for objective in ['eps-fair', 'delta-fair']:   
+                    cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
+                    data.append(round(cost, 2))
+                csv_writer.writerow(data)
+
+            csv_writer.writerow([1.0, minmax_cost, min_cost])
+
     def export_minmaxFair_to_csv(self):
         '''Not used in the paper'''
         csv_filename = os.path.join(self.results_path, 'minmaxFair.csv')
@@ -272,7 +296,7 @@ class databaseToCSV():
 def handle_command_line():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-tableName", "--tableName", choices=['runtime_pNorm', 'runtime_epsFair', 'runtime_deltaFair', 'COF', 'minmaxFair', 'pNormFair'],
+    parser.add_argument("-tableName", "--tableName", choices=['runtime_pNorm', 'runtime_epsFair', 'runtime_deltaFair', 'COF', 'minmaxFair', 'pNormFair', 'ParetoFront'],
                         help="give the table name", type=str)
     
     args = parser.parse_args()
@@ -304,6 +328,8 @@ def main():
             dataTransfer.export_minmaxFair_final()
         elif tableName == 'pNormFair':
             dataTransfer.export_pNormFair_to_csv()
+        elif tableName == 'ParetoFront':    
+            dataTransfer.export_ParetoFront_plotdata()
         
         dataTransfer._closeConnection()
     

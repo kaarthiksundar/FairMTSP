@@ -26,6 +26,8 @@ def handle_command_line():
                         help='generate the grid plot')
     parser.add_argument('-c', '--pdfcrop', action='store_true', 
                         help='crop figures after generating them')
+    parser.add_argument('-o', '--option', choices=['all', 'COF', 'paretoFront'],
+                        help='plot all/COF/paretoFront')
     config = parser.parse_args()
     return config
 
@@ -67,21 +69,30 @@ class Controller:
     def _set_rc_params(self):
         if self.config.target == 'paper':
             matplotlib.rcParams.update({
-                'text.usetex': False,
+                'text.usetex': True,
                 'font.family': 'serif',
                 'font.size' : 10,
                 'pgf.rcfonts': False,
                 })
         else: 
             matplotlib.rcParams.update({
-                'text.usetex': False,
+                'text.usetex': True,
                 'font.family': 'sans-serif',
                 'text.latex.preamble': r'\usepackage{sourcesanspro,eulervm}',
                 'font.size' : 11,
                 'pgf.rcfonts': False,
                 })
 
-    def getData(self):
+    def plot(self):
+        if self.config.option == 'COF':
+            self.plotCOF()
+        elif self.config.option == 'paretoFront':
+            self.plotParetoFront()
+        else:    
+            self.plotCOF()
+            self.plotParetoFront()
+
+    def getCOFData(self):
         COF_filepath = self.getDataFilepath(self.getbasepath())
         fairness_coefficient = []
         epsCOF = []
@@ -98,24 +109,24 @@ class Controller:
                     fairness_coefficient.append(float(row[0]))
                     epsCOF.append(float(row[1]))
                     deltaCOF.append(float(row[2]))
-        epsCOF[-1] = 0.28
-        deltaCOF[0] = 0.28
+        epsCOF[-1] = minmaxCOF
+        deltaCOF[0] = minmaxCOF
 
         return fairness_coefficient, epsCOF, deltaCOF, minmaxCOF
+        
+    def plotCOF(self):
 
-    def plotData(self):
-
-        fairness_coefficient, epsCOF, deltaCOF, minmaxCOF = self.getData()
+        fairness_coefficient, epsCOF, deltaCOF, minmaxCOF = self.getCOFData()
         fig, ax = plt.subplots()
         params = self.get_plot_params(self.config.target)
         fs=params['fig_size']
         # fig.set_size_inches(fs[0], fs[1])
         fig.set_size_inches(6,4)
-        ax.step(fairness_coefficient, epsCOF, linestyle='-', marker = 'o', label=r'$\varepsilon$-F-MTSP')
-        ax.step(fairness_coefficient, deltaCOF, linestyle='-', marker = 'o', label=r'$\Delta$-F-MTSP', where = 'post')
+        ax.step(fairness_coefficient, epsCOF, color='g', linestyle='-', marker = 'o', label=r'COF$(\mathcal{F}^{\varepsilon})$')
+        ax.step(fairness_coefficient, deltaCOF, color='r', linestyle='dashdot', marker = 'o', label=r'COF$(\mathcal{F}^{\Delta})$', where = 'post')
 
         # Plot the constant line for minmaxCOF
-        ax.axhline(y=minmaxCOF, color='r', linestyle='--', label='min-max MTSP')
+        ax.axhline(y=minmaxCOF, color='b', linestyle='--', label=r'COF$(\mathcal{F}_{\infty})$')
 
         plt.xlabel(r'$\varepsilon, \Delta$', fontsize = 12)
         plt.ylabel('Cost of Fairness', fontsize = 12)
@@ -125,7 +136,57 @@ class Controller:
         
         # plt.show()
         plt.savefig(f'../plots/{self.config.target}/COF.pdf', format='pdf')
- 
+    
+    def getParetoFrontData(self):
+        ParetoFront_filepath = os.path.join(self.getbasepath(), 'results', 'ParetoFront_plotdata.csv') 
+        fairness_coefficient = []
+        epsCost = []
+        deltaCost = []
+        minmaxCost = None
+        minCost = None
+
+        with open(ParetoFront_filepath, 'r') as file:
+            reader = csv.reader(file, delimiter=',')
+            for row in reader:
+                if row[0] == 'minmaxCost':
+                    minmaxCost = float(row[1])
+                
+                elif row[0] == 'minCost':
+                    minCost = float(row[1])
+
+                elif row[0][0] in ['0','1'] :
+                    fairness_coefficient.append(float(row[0]))
+                    epsCost.append(float(row[1]))
+                    deltaCost.append(float(row[2]))
+        
+        deltaCost[0] = minmaxCost
+        epsCost[-1] = minmaxCost
+
+        return fairness_coefficient, epsCost, deltaCost, minmaxCost, minCost
+    
+    def plotParetoFront(self):
+
+        fairness_coefficient, epsCost, deltaCost, minmaxCost, minCost = self.getParetoFrontData()
+        fig, ax = plt.subplots()
+        params = self.get_plot_params(self.config.target)
+        fs=params['fig_size']
+        # fig.set_size_inches(fs[0], fs[1])
+        fig.set_size_inches(6,4)
+        ax.step(fairness_coefficient, epsCost, color = 'g', linestyle='-', marker = 'o', label=r'Cost$(\mathcal{F}^{\varepsilon})$')
+        ax.step(fairness_coefficient, deltaCost, color = 'r', linestyle='dashdot', marker = 'o', label=r'Cost$(\mathcal{F}^{\Delta})$', where = 'post')
+
+        # Plot the constant line for minmaxCOF
+        ax.axhline(y=minmaxCost, color='b', linestyle='--', label=r'Cost$(\mathcal{F}_{\infty})$')
+        ax.axhline(y=minCost, color='c', linestyle='--', label=r'Cost$(\mathcal{F}_1)$')
+
+        plt.xlabel(r'$\varepsilon, \Delta$', fontsize = 12)
+        plt.ylabel('Cost', fontsize = 12)
+        plt.legend(loc='upper center', bbox_to_anchor=(0.55, 0.9))
+        plt.tight_layout()       
+        plt.grid(True)
+        
+        # plt.show()
+        plt.savefig(f'../plots/{self.config.target}/paretoFront.pdf', format='pdf')
 
 
 def main():
@@ -136,7 +197,7 @@ def main():
         config = handle_command_line()
         controller = Controller(config)
         controller._set_rc_params()
-        controller.plotData()
+        controller.plot()
     except PlotException as pe:
         log.error(pe)
 
