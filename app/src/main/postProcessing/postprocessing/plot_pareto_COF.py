@@ -42,7 +42,7 @@ class Controller:
     def get_plot_params(target):
         if target == 'paper':
             return {
-                'fig_size': (2.5, 2.5)
+                'fig_size': (3.5, 2.5)
             }
         else: 
             return {
@@ -51,11 +51,11 @@ class Controller:
         
 
     @staticmethod
-    def getbasepath():
+    def get_base_path():
         return os.path.abspath(os.path.join(os.path.dirname(__file__) , '../../../../..'))
     
     @staticmethod
-    def getDataFilepath(basepath):
+    def get_data_file_path(basepath):
         return os.path.join(basepath, 'results', 'COF_plotdata.csv')
     
     @staticmethod 
@@ -95,15 +95,15 @@ class Controller:
     def getCOFData(self):
         COF_filepath = self.getDataFilepath(self.getbasepath())
         fairness_coefficient = []
-        epsCOF = []
-        deltaCOF = []
-        minmaxCOF = None
+        eps_cof = []
+        delta_cof = []
+        minmax_cof = None
 
         with open(COF_filepath, 'r') as file:
             reader = csv.reader(file, delimiter=',')
             for row in reader:
                 if row[0] == 'minmaxCOF':
-                    minmaxCOF = float(row[1])
+                    minmax_cof = float(row[1])
                 
                 elif row[0][0] in ['0','1'] :
                     fairness_coefficient.append(float(row[0]))
@@ -128,13 +128,15 @@ class Controller:
         # Plot the constant line for minmaxCOF
         ax.axhline(y=minmaxCOF, color='b', linestyle='--', label=r'COF$(\mathcal{F}_{\infty})$')
 
-        plt.xlabel(r'$\varepsilon, \Delta$', fontsize = 12)
-        plt.ylabel('Cost of Fairness', fontsize = 12)
-        plt.legend(loc='upper center', bbox_to_anchor=(0.55, 0.9))
+        plt.xlabel(r'$\varepsilon, \Delta$')
+        plt.ylabel('Cost of Fairness')
+        if self.config.target == 'presentation':
+            plt.legend(loc='best', frameon=False, bbox_to_anchor=(0.55, 0.9))
+        else:
+            plt.legend(loc='best', frameon=False, fontsize=9, bbox_to_anchor=(0.55, 0.5))
         plt.tight_layout()       
         plt.grid(True)
         
-        # plt.show()
         plt.savefig(f'../plots/{self.config.target}/COF.pdf', format='pdf')
     
     def getParetoFrontData(self):

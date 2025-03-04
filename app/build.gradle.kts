@@ -41,8 +41,8 @@ dependencies {
     implementation("org.jgrapht:jgrapht-core:1.5.1")
 
     // CPLEX
-    val cplexJarPath: String by project
-//    val cplexJarPath = "/Users/kaarthik/Applications/CPLEX_Studio2211/cplex/lib/cplex.jar"
+//    val cplexJarPath: String by project
+    val cplexJarPath = "/Users/kaarthik/Applications/CPLEX_Studio2211/cplex/lib/cplex.jar"
     implementation(files(cplexJarPath))
 
     // JSON serialization

@@ -91,6 +91,10 @@ class Controller:
     @staticmethod 
     def get_filename(num_vehicles, obj_type): 
         return f'../../../../../results/seattle/seattle-v-{num_vehicles}-{obj_type}-p-2-fc-50.json'
+    
+    @staticmethod
+    def get_two_vehicle_filename():
+        return f'../../../../../app/logs/seattle-v-2-eps-fair-p-2-fc-10.json'
         
     def _set_rc_params(self):
         if self.config.target == 'paper':
@@ -284,6 +288,33 @@ class Controller:
             plt.savefig(f'../plots/{self.config.target}/seattle_{obj_type}.pdf', format='pdf')
             if self.config.pdfcrop == True:
                 self.crop(f'../plots/{self.config.target}/seattle_{obj_type}')
+                
+    def _plot_two_vehicle_solution(self):
+        file = self.get_two_vehicle_filename()
+        colors = ['xkcd:green', 'xkcd:magenta', 'xkcd:orange red', 'xkcd:brown']
+        fig, ax = plt.subplots() 
+        self._add_graph(ax)
+        data = {} 
+        with open(file, 'r') as jsonfile: 
+            data = json.load(jsonfile)
+        tours = data['tours']
+        for vehicle in range(2):
+            path = [] 
+            tour = tours[vehicle]
+            for i in range(len(tour)-1):
+                s = tour[i] 
+                t = tour[i+1]
+                path.extend(nx.shortest_path(self.G, source=s, target=t, weight='length')[:-1])
+            path.extend([tour[0]])
+            self._add_route(ax, path, colors[vehicle])
+        params = self.get_plot_params(self.config.target) 
+        fig.set_tight_layout(True)
+        fs = params['fig_size']
+        log.info(f'setting two vehicle fig size: {fs} sq. inches')
+        fig.set_size_inches(fs[0], fs[1])
+        plt.savefig(f'../plots/{self.config.target}/seattle_2_min.pdf', format='pdf')
+        if self.config.pdfcrop == True:
+            self.crop(f'../plots/{self.config.target}/seattle_2_min')
     
             
     def run(self): 
@@ -294,6 +325,7 @@ class Controller:
         self._plot_fair_solutions(fc,'delta-fair') 
         self._plot_fair_solutions(fc, 'eps-fair')
         self._plot_other_solutions()
+        self._plot_two_vehicle_solution()
         
 
 def main():
