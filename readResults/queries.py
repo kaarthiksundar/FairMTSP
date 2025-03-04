@@ -1,4 +1,4 @@
-import sqlite3, logging, argparse
+import sqlite3, logging, argparse, ast
 import csv, os, numpy as np
 from math import ceil, floor
 
@@ -42,6 +42,17 @@ class databaseToCSV():
         """, (instance_name, str(numVehicles), objective, str(pNorm), str(fc)))
         result = self.cursor.fetchone()
         return round(float(result[0]),1) if result else None 
+    
+    def _getLengthofTours(self, instance_name, objective, numVehicles, pNorm = 1, fc = 0.0):
+        self.cursor.execute(f"""
+            SELECT LengthOfTours
+            FROM {'vehi'+str(numVehicles)}
+            WHERE instanceName = ? AND numVehicles = ? AND objective = ? AND pNorm = ? AND fairnessCoefficient = ?
+        """, (instance_name, str(numVehicles), objective, str(pNorm), str(fc)))
+        result = self.cursor.fetchone()
+        if result:
+            result = ast.literal_eval(result[0])
+        return [round(abs(len),1) for len in result] if result else None 
 
     def _getFairnessIndex(self, instance_name, numVehicles, objective, pNorm = 1, fc = 0.0):
         # returns jainIndex, giniIndex and normIndex corresponding to given instance 
@@ -53,6 +64,11 @@ class databaseToCSV():
         result = self.cursor.fetchone()
         fairIndex = {'giniIndex': float(result[0]), 'jainIndex':float(result[1]), 'normIndex':float(result[2])} if result else None 
         return fairIndex
+    
+    def _getCoefficientOfVariation(self, lengthOfTours):
+        mean = np.mean(lengthOfTours)
+        std = np.std(lengthOfTours)
+        return round(std/mean, 3)
 
     def export_computation_time_to_csv(self, table_objective):
 
@@ -292,11 +308,54 @@ class databaseToCSV():
 
                     csv_writer.writerow(data)
 
+    def export_coeff_variation(self):
+        csv_filename = os.path.join(self.results_path, 'coeffVariation.csv')
+
+        with open (csv_filename, 'w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_writer.writerow(['Instance Name', 'Number of Vehicles', 'objective', 'parameter', 'l1', 'l2', 'l3', 'l4', 'l5', 'Coeff Variation'])
+            
+            data = []
+            for instance_name in ['bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
+                numVehicle = 5
+                for objective in ['min', 'min-max', 'p-norm', 'eps-fair', 'delta-fair']:
+                    
+                    if objective in ['min', 'min-max']:
+                        data = [instance_name.split(".")[0], numVehicle]
+                        data.extend([objective, '-'])
+                        lengthOfTours = self._getLengthofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle)
+                        data.extend(lengthOfTours)
+                        data.append(self._getCoefficientOfVariation(lengthOfTours))
+                        csv_writer.writerow(data)
+
+                    if objective == 'p-norm':
+                        pNorm = [2,3,5,10]
+                        for p in pNorm:
+                            data = [instance_name.split(".")[0], numVehicle]
+                            data.extend([objective, p])
+                            lengthOfTours = self._getLengthofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, pNorm=p)
+                            data.extend(lengthOfTours)
+                            data.append(self._getCoefficientOfVariation(lengthOfTours))
+                            csv_writer.writerow(data)
+
+                    if objective in ['eps-fair', 'delta-fair']:
+                        fairnessCoefficient = [0.1,0.3,0.5,0.7,0.9] 
+                        for fc in fairnessCoefficient:
+                            data = [instance_name.split(".")[0], numVehicle]
+                            data.extend([objective, fc])
+                            lengthOfTours = self._getLengthofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
+                            data.extend(lengthOfTours)
+                            data.append(self._getCoefficientOfVariation(lengthOfTours))
+                    
+                            csv_writer.writerow(data)
+
+
+
 
 def handle_command_line():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-tableName", "--tableName", choices=['runtime_pNorm', 'runtime_epsFair', 'runtime_deltaFair', 'COF', 'minmaxFair', 'pNormFair', 'ParetoFront'],
+    parser.add_argument("-tableName", "--tableName", choices=['runtime_pNorm', 'runtime_epsFair', 'runtime_deltaFair', 'COF', 'minmaxFair', 'pNormFair', 'ParetoFront', 'COV'],
                         help="give the table name", type=str)
     
     args = parser.parse_args()
@@ -330,6 +389,8 @@ def main():
             dataTransfer.export_pNormFair_to_csv()
         elif tableName == 'ParetoFront':    
             dataTransfer.export_ParetoFront_plotdata()
+        elif tableName == 'COV':
+            dataTransfer.export_coeff_variation()
         
         dataTransfer._closeConnection()
     
