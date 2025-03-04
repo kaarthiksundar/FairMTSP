@@ -65,6 +65,24 @@ class databaseToCSV():
         fairIndex = {'giniIndex': float(result[0]), 'jainIndex':float(result[1]), 'normIndex':float(result[2])} if result else None 
         return fairIndex
     
+    def _getMinParam(self, instance_name, numVehicles, objective):
+        self.cursor.execute(f"""
+            SELECT MIN(fairnessCoefficient)
+            FROM {'vehi'+str(numVehicles)}
+            WHERE instanceName = ? AND numVehicles = ? AND objective = ?
+        """, (instance_name, str(numVehicles), objective))
+        result = self.cursor.fetchone()
+        return round(float(result[0]),4) if result else None
+    
+    def _getMaxParam(self, instance_name, numVehicles, objective):
+        self.cursor.execute(f"""
+            SELECT MAX(fairnessCoefficient)
+            FROM {'vehi'+str(numVehicles)}
+            WHERE instanceName = ? AND numVehicles = ? AND objective = ?
+        """, (instance_name, str(numVehicles), objective))
+        result = self.cursor.fetchone()
+        return round(float(result[0]),4) if result else None
+    
     def _getCoefficientOfVariation(self, lengthOfTours):
         mean = np.mean(lengthOfTours)
         std = np.std(lengthOfTours)
@@ -84,7 +102,7 @@ class databaseToCSV():
                 csv_writer.writerow(['Instance Name', 'Number of Vehicles', 'min (sec)', 'minmax', 'deltaFair 0.1', 'deltaFair 0.3', 'deltaFair 0.5', 'deltaFair 0.7', 'deltaFair 0.9'])  # Write header
 
             data = []
-            for instance_name in ['bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
+            for instance_name in ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
                 for numVehicle in [3,4,5]:
                     data = [instance_name.split(".")[0], numVehicle]
                     min_time = 0
@@ -313,11 +331,11 @@ class databaseToCSV():
 
         with open (csv_filename, 'w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile)
-            csv_writer.writerow(['Instance Name', 'Number of Vehicles', 'objective', 'parameter', 'l1', 'l2', 'l3', 'l4', 'l5', 'Coeff Variation'])
+            csv_writer.writerow(['Instance Name', 'Number of Vehicles', 'objective', 'parameter', 'l1', 'l2', 'l3', 'l4', 'Coeff Variation'])
             
             data = []
-            for instance_name in ['bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
-                numVehicle = 5
+            for instance_name in ['burma14.tsp', 'bays29.tsp', 'eil51.tsp']:
+                numVehicle = 4
                 for objective in ['min', 'min-max', 'p-norm', 'eps-fair', 'delta-fair']:
                     
                     if objective in ['min', 'min-max']:
@@ -339,10 +357,13 @@ class databaseToCSV():
                             csv_writer.writerow(data)
 
                     if objective in ['eps-fair', 'delta-fair']:
-                        fairnessCoefficient = [0.1,0.3,0.5,0.7,0.9] 
+                        if objective == 'eps-fair':
+                            fairnessCoefficient = [0.1,0.3,0.5,0.7,0.9, self._getMaxParam(instance_name, numVehicle, objective)]
+                        if objective == 'delta-fair':
+                            fairnessCoefficient = [self._getMinParam(instance_name, numVehicle, objective) , 0.1,0.3,0.5,0.7,0.9] 
+                        
                         for fc in fairnessCoefficient:
-                            data = [instance_name.split(".")[0], numVehicle]
-                            data.extend([objective, fc])
+                            data = [instance_name.split(".")[0], numVehicle, objective, fc]        
                             lengthOfTours = self._getLengthofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
                             data.extend(lengthOfTours)
                             data.append(self._getCoefficientOfVariation(lengthOfTours))
