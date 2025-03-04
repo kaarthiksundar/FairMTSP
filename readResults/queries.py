@@ -266,7 +266,7 @@ class databaseToCSV():
                                  'epsFair cost', 'epsFair COF', 'deltaFair cost', 'deltaFair COF' ])
             
             data = []
-            for instance_name in ['bays29.tsp', 'eil51.tsp']:
+            for instance_name in ['burma14.tsp','bays29.tsp', 'eil51.tsp']:
                 for numVehicle in [3,4,5]:
                     
                     min_cost = self._getSumofTours(instance_name=instance_name, objective='min', numVehicles=numVehicle)
