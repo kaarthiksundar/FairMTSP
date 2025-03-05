@@ -21,7 +21,7 @@ def handle_command_line():
     """function to manage command line arguments """
     parser = argparse.ArgumentParser() 
     parser.add_argument('-t', '--target', choices=['paper', 'presentation'], 
-                        help='paper/presentation', type=str)
+                        help='paper/presentation', type=str, default='paper')
     parser.add_argument('-g', '--plotgrid', action='store_true',
                         help='generate the grid plot')
     parser.add_argument('-c', '--pdfcrop', action='store_true', 
@@ -71,6 +71,7 @@ class Controller:
             matplotlib.rcParams.update({
                 'text.usetex': True,
                 'font.family': 'serif',
+                'text.latex.preamble': r'\usepackage[scaled=0.9]{newpxtext}\usepackage[scaled=0.9]{newpxmath}',
                 'font.size' : 10,
                 'pgf.rcfonts': False,
                 })
@@ -85,15 +86,15 @@ class Controller:
 
     def plot(self):
         if self.config.option == 'COF':
-            self.plotCOF()
+            self.plot_cof()
         elif self.config.option == 'paretoFront':
-            self.plotParetoFront()
+            self.plot_pareto_front()
         else:    
-            self.plotCOF()
-            self.plotParetoFront()
+            self.plot_cof()
+            self.plot_pareto_front()
 
     def getCOFData(self):
-        COF_filepath = self.getDataFilepath(self.getbasepath())
+        COF_filepath = self.get_data_file_path(self.get_base_path())
         fairness_coefficient = []
         eps_cof = []
         delta_cof = []
@@ -107,21 +108,21 @@ class Controller:
                 
                 elif row[0][0] in ['0','1'] :
                     fairness_coefficient.append(float(row[0]))
-                    epsCOF.append(float(row[1]))
-                    deltaCOF.append(float(row[2]))
-        epsCOF[-1] = minmaxCOF
-        deltaCOF[0] = minmaxCOF
+                    eps_cof.append(float(row[1]))
+                    delta_cof.append(float(row[2]))
+        eps_cof[-1] = minmax_cof
+        delta_cof[0] = minmax_cof
 
-        return fairness_coefficient, epsCOF, deltaCOF, minmaxCOF
+        return fairness_coefficient, eps_cof, delta_cof, minmax_cof
         
-    def plotCOF(self):
+    def plot_cof(self):
 
         fairness_coefficient, epsCOF, deltaCOF, minmaxCOF = self.getCOFData()
         fig, ax = plt.subplots()
         params = self.get_plot_params(self.config.target)
         fs=params['fig_size']
-        # fig.set_size_inches(fs[0], fs[1])
-        fig.set_size_inches(6,4)
+        fig.set_size_inches(fs[0], fs[1])
+        # fig.set_size_inches(6,4)
         ax.step(fairness_coefficient, epsCOF, color='g', linestyle='-', marker = 'o', label=r'COF$(\mathcal{F}^{\varepsilon})$')
         ax.step(fairness_coefficient, deltaCOF, color='r', linestyle='dashdot', marker = 'o', label=r'COF$(\mathcal{F}^{\Delta})$', where = 'post')
 
@@ -139,55 +140,60 @@ class Controller:
         
         plt.savefig(f'../plots/{self.config.target}/COF.pdf', format='pdf')
     
-    def getParetoFrontData(self):
-        ParetoFront_filepath = os.path.join(self.getbasepath(), 'results', 'ParetoFront_plotdata.csv') 
+    def get_pareto_front_data(self):
+        pareto_front_filepath = os.path.join(self.get_base_path(), 'results', 'ParetoFront_plotdata.csv') 
         fairness_coefficient = []
-        epsCost = []
-        deltaCost = []
-        minmaxCost = None
-        minCost = None
+        eps_cost = []
+        delta_cost = []
+        minmax_cost = None
+        min_cost = None
 
-        with open(ParetoFront_filepath, 'r') as file:
+        with open(pareto_front_filepath, 'r') as file:
             reader = csv.reader(file, delimiter=',')
             for row in reader:
                 if row[0] == 'minmaxCost':
-                    minmaxCost = float(row[1])
+                    minmax_cost = float(row[1])
                 
                 elif row[0] == 'minCost':
-                    minCost = float(row[1])
+                    min_cost = float(row[1])
 
                 elif row[0][0] in ['0','1'] :
                     fairness_coefficient.append(float(row[0]))
-                    epsCost.append(float(row[1]))
-                    deltaCost.append(float(row[2]))
+                    eps_cost.append(float(row[1]))
+                    delta_cost.append(float(row[2]))
         
-        deltaCost[0] = minmaxCost
-        epsCost[-1] = minmaxCost
+        delta_cost[0] = minmax_cost
+        eps_cost[-1] = minmax_cost
 
-        return fairness_coefficient, epsCost, deltaCost, minmaxCost, minCost
+        return fairness_coefficient, eps_cost, delta_cost, minmax_cost, min_cost
     
-    def plotParetoFront(self):
-
-        fairness_coefficient, epsCost, deltaCost, minmaxCost, minCost = self.getParetoFrontData()
+    def plot_pareto_front(self):
+        fairness_coefficient, eps_cost, delta_cost, minmax_cost, min_cost = self.get_pareto_front_data()
         fig, ax = plt.subplots()
         params = self.get_plot_params(self.config.target)
-        fs=params['fig_size']
-        # fig.set_size_inches(fs[0], fs[1])
-        fig.set_size_inches(6,4)
-        ax.step(fairness_coefficient, epsCost, color = 'g', linestyle='-', marker = 'o', label=r'Cost$(\mathcal{F}^{\varepsilon})$')
-        ax.step(fairness_coefficient, deltaCost, color = 'r', linestyle='dashdot', marker = 'o', label=r'Cost$(\mathcal{F}^{\Delta})$', where = 'post')
+        fs = params['fig_size']
+        fig.set_size_inches(fs[0], fs[1])
+        # fig.set_size_inches(6,4)
+        ax.grid(alpha=0.1)
+        ax.plot(fairness_coefficient, eps_cost, color = 'xkcd:green', 
+                linestyle='-', marker = '.', markersize = 1.8, linewidth = 1, 
+                label=r'$(\mathcal{F}^{\varepsilon})$')
+        ax.plot(fairness_coefficient, delta_cost, color = 'xkcd:rose', 
+                linestyle='dashdot', marker = '.', markersize = 1.8, linewidth = 1, 
+                label=r'$(\mathcal{F}^{\Delta})$')
+        # where = 'post')
 
         # Plot the constant line for minmaxCOF
-        ax.axhline(y=minmaxCost, color='b', linestyle='--', label=r'Cost$(\mathcal{F}_{\infty})$')
-        ax.axhline(y=minCost, color='c', linestyle='--', label=r'Cost$(\mathcal{F}_1)$')
+        ax.axhline(y=minmax_cost, color='xkcd:orange', linestyle=':', linewidth = 1, label=r'$(\mathcal{F}_{\infty})$')
+        ax.axhline(y=min_cost, color='xkcd:bright red', linestyle='--', linewidth = 1, label=r'$(\mathcal{F}_1)$')
 
         plt.xlabel(r'$\varepsilon, \Delta$', fontsize = 12)
-        plt.ylabel('Cost', fontsize = 12)
-        plt.legend(loc='upper center', bbox_to_anchor=(0.55, 0.9))
+        plt.ylabel(r'$$\left(\sum_{1 \leqslant v \leqslant m} l_v\right)$$', fontsize = 12, rotation=0)
+        ax.yaxis.set_label_coords(-0.3, 0.4)
+        plt.legend(loc='upper center', bbox_to_anchor=(0.55, 0.95), frameon=False)
         plt.tight_layout()       
         plt.grid(True)
         
-        # plt.show()
         plt.savefig(f'../plots/{self.config.target}/paretoFront.pdf', format='pdf')
 
 
