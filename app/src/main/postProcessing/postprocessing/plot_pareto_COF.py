@@ -42,7 +42,7 @@ class Controller:
     def get_plot_params(target):
         if target == 'paper':
             return {
-                'fig_size': (3.5, 2.5)
+                'fig_size': (4, 3)
             }
         else: 
             return {
@@ -71,7 +71,7 @@ class Controller:
             matplotlib.rcParams.update({
                 'text.usetex': True,
                 'font.family': 'serif',
-                'text.latex.preamble': r'\usepackage[scaled=0.9]{newpxtext}\usepackage[scaled=0.9]{newpxmath}',
+                'text.latex.preamble': r'\usepackage[scaled=0.9]{newpxtext}\usepackage[scaled=0.9]{newpxmath}\usepackage{bm}',
                 'font.size' : 10,
                 'pgf.rcfonts': False,
                 })
@@ -93,7 +93,7 @@ class Controller:
             self.plot_cof()
             self.plot_pareto_front()
 
-    def getCOFData(self):
+    def get_cof_data(self):
         COF_filepath = self.get_data_file_path(self.get_base_path())
         fairness_coefficient = []
         eps_cof = []
@@ -116,18 +116,23 @@ class Controller:
         return fairness_coefficient, eps_cof, delta_cof, minmax_cof
         
     def plot_cof(self):
-
-        fairness_coefficient, epsCOF, deltaCOF, minmaxCOF = self.getCOFData()
+        fairness_coefficient, eps_cof, delta_cof, minmax_cof = self.get_cof_data()
         fig, ax = plt.subplots()
         params = self.get_plot_params(self.config.target)
         fs=params['fig_size']
         fig.set_size_inches(fs[0], fs[1])
-        # fig.set_size_inches(6,4)
-        ax.step(fairness_coefficient, epsCOF, color='g', linestyle='-', marker = 'o', label=r'COF$(\mathcal{F}^{\varepsilon})$')
-        ax.step(fairness_coefficient, deltaCOF, color='r', linestyle='dashdot', marker = 'o', label=r'COF$(\mathcal{F}^{\Delta})$', where = 'post')
+        fig.set_size_inches(3,3)
+        ax.grid(alpha=0.1)
+        ax.grid(alpha=0.1)
+        ax.plot(fairness_coefficient, eps_cof, color = 'xkcd:green', 
+                linestyle='-', marker = '.', markersize = 1.8, linewidth = 1, 
+                label=r'COF$(\mathcal{F}^{\varepsilon})$')
+        ax.plot(fairness_coefficient, delta_cof, color = 'xkcd:rose', 
+                linestyle='dashdot', marker = '.', markersize = 1.8, linewidth = 1, 
+                label=r'COF$(\mathcal{F}^{\Delta})$')
 
-        # Plot the constant line for minmaxCOF
-        ax.axhline(y=minmaxCOF, color='b', linestyle='--', label=r'COF$(\mathcal{F}_{\infty})$')
+        # Plot the constant line for minmax_cof
+        ax.axhline(y=minmax_cof, color='xkcd:orange', linestyle='--', linewidth = 1, label=r'COF$(\mathcal{F}_{\infty})$')
 
         plt.xlabel(r'$\varepsilon, \Delta$')
         plt.ylabel('Cost of Fairness')
@@ -137,8 +142,9 @@ class Controller:
             plt.legend(loc='best', frameon=False, fontsize=9, bbox_to_anchor=(0.55, 0.5))
         plt.tight_layout()       
         plt.grid(True)
-        
-        plt.savefig(f'../plots/{self.config.target}/COF.pdf', format='pdf')
+        filename = f'../plots/{self.config.target}/COF'
+        plt.savefig(f'{filename}.pdf', format='pdf')
+        self.crop(filename)
     
     def get_pareto_front_data(self):
         pareto_front_filepath = os.path.join(self.get_base_path(), 'results', 'ParetoFront_plotdata.csv') 
@@ -177,24 +183,26 @@ class Controller:
         ax.grid(alpha=0.1)
         ax.plot(fairness_coefficient, eps_cost, color = 'xkcd:green', 
                 linestyle='-', marker = '.', markersize = 1.8, linewidth = 1, 
-                label=r'$(\mathcal{F}^{\varepsilon})$')
+                label=r'$\left(\mathcal{F}^{\varepsilon}_{\mathrm{bi-obj}}\right)$')
         ax.plot(fairness_coefficient, delta_cost, color = 'xkcd:rose', 
                 linestyle='dashdot', marker = '.', markersize = 1.8, linewidth = 1, 
-                label=r'$(\mathcal{F}^{\Delta})$')
+                label=r'$\left(\mathcal{F}^{\Delta}_{\mathrm{bi-obj}}\right)$')
         # where = 'post')
 
-        # Plot the constant line for minmaxCOF
+        # Plot the constant line for minmax_cof
         ax.axhline(y=minmax_cost, color='xkcd:orange', linestyle=':', linewidth = 1, label=r'$(\mathcal{F}_{\infty})$')
         ax.axhline(y=min_cost, color='xkcd:bright red', linestyle='--', linewidth = 1, label=r'$(\mathcal{F}_1)$')
 
-        plt.xlabel(r'$\varepsilon, \Delta$', fontsize = 12)
+        plt.xlabel(r'$\varepsilon\mathrm{FI}(\bm l), \mathrm{GC}(\bm l)$', fontsize = 12)
         plt.ylabel(r'$$\left(\sum_{1 \leqslant v \leqslant m} l_v\right)$$', fontsize = 12, rotation=0)
         ax.yaxis.set_label_coords(-0.3, 0.4)
-        plt.legend(loc='upper center', bbox_to_anchor=(0.55, 0.95), frameon=False)
+        plt.legend(loc='upper center', bbox_to_anchor=(0.55, 0.99), frameon=False)
         plt.tight_layout()       
         plt.grid(True)
         
-        plt.savefig(f'../plots/{self.config.target}/paretoFront.pdf', format='pdf')
+        filename = f'../plots/{self.config.target}/paretoFront'
+        plt.savefig(f'{filename}.pdf', format='pdf')
+        self.crop(filename)
 
 
 def main():
