@@ -3,6 +3,7 @@ import argparse
 import csv, sqlite3
 import logging
 import os
+import re
 import shutil
 import subprocess
 import numpy as np
@@ -149,17 +150,42 @@ class Controller:
         log.info('Test folder completed')
 
     def _collect_cases(self):
-        instance_names = ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']
+        # TSP instances with multiple vehicle counts
+        tsp_instances = ['att48.tsp', 'bayg29.tsp', 'dantzig42.tsp', 
+                        'fri26.tsp', 'gr17.tsp', 'gr21.tsp', 'gr24.tsp', 'gr48.tsp']
         vehicles_count = [3,4,5]
 
-        instance_names = ['eil51.tsp']
-        vehicles_count = [5]
+        # VRP instances - extract vehicle count from filename
+        vrp_cases = []
+        data_files = os.listdir(self.config.data_path)
+        for filename in data_files:
+            if filename.endswith('.vrp') and not os.path.isdir(os.path.join(self.config.data_path, filename)):
+                # Extract vehicle count from filename (e.g., A-n32-k5.vrp -> 5)
+                match = re.search(r'-k(\d+)\.vrp$', filename)
+                if match:
+                    vehicle_count = int(match.group(1))
+                    vrp_cases.append((filename, vehicle_count))
 
         pNorm = [2,3,5,10] if self.objective == "p-norm" else [1]
         fairnessCoefficient = np.arange(0,1,0.05) if self.objective in ["eps-fair", "delta-fair"] else [0.0]
         fairnessCoefficient = [round(x,2) for x in fairnessCoefficient]
-        return [(instance, vehicle, fc, p) for instance in instance_names for vehicle in vehicles_count
-                                            for fc in fairnessCoefficient for p in pNorm]
+        
+        # Cases for TSP instances
+        tsp_cases = [(instance, vehicle, fc, p) for instance in tsp_instances 
+                                            for vehicle in vehicles_count
+                                            for fc in fairnessCoefficient 
+                                            for p in pNorm]
+        
+        # Cases for VRP instances (each with its specific vehicle count)
+        vrp_cases_list = [(instance, vehicle, fc, p) for instance, vehicle in vrp_cases
+                                            for fc in fairnessCoefficient 
+                                            for p in pNorm]
+        
+        # Combine both types of cases
+        cases = tsp_cases + vrp_cases_list
+        
+        return cases
+        
     
     def _COF_runs(self):
         cases = self._COF_cases()

@@ -19,8 +19,8 @@ class CliParser : CliktCommand() {
         "-n",
         help = "instance name"
     ).default("seattle.tsp").validate {
-        require(it.endsWith(".tsp")) {
-            "provide a TSPLIB instance that ends in .tsp"
+        require(it.endsWith(".tsp") || it.endsWith(".vrp")) {
+            "provide a TSPLIB instance that ends in .tsp or .vrp"
         }
     }
 
