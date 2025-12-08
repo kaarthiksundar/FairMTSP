@@ -102,15 +102,23 @@ class InstanceDto(
                 coords[vertex] = coord
             }
     
-            if (!depotFlag) {
+            // For EUC_2D, check if DEPOT_SECTION exists first
+            val depotFromSection = if (edgeWeightType == "EUC_2D") parseDepotSection() else null
+            if (depotFromSection != null) {
+                depot = depotFromSection
+                log.debug { "Assigned depot from DEPOT_SECTION: $depot" }
+            } else if (!depotFlag) {
                 /*if the depot is not given*/
                 numVertices += 1  /*adding the depot*/
                 coords[0] = getDepotCoord(coords) /*assign vertex 0 to the depot*/
                 depot = 0
+                log.debug { "Assigned mean of target coordinates as depot : $depot" }
             } else {
-                /*if the depot is given*/
+                /*if the depot is given (Seattle instance)*/
                 depot = lines[6].trim().split("\\s+".toRegex()).first().toInt()
+                log.debug { "Assigned first node as depot for Seattle instance: $depot" }
             }
+            
             if (edgeWeightType == "GIVEN") {
                 val edgeCostLines = lines.subList(7 + numVertices, lines.size - 1)
                 edgeCosts = edgeCostLines.map(::parseEdgeCost).associate {
@@ -174,6 +182,43 @@ class InstanceDto(
 
             }
         }
+    }
+
+    /**
+     * Parses DEPOT_SECTION to extract the depot vertex number
+     * Format: DEPOT_SECTION followed by depot vertex number(s), then -1, then EOF
+     * @return Depot vertex number if found, null otherwise
+     */
+    private fun parseDepotSection(): Int? {
+        var inDepotSection = false
+        
+        for (line in lines) {
+            val trimmedLine = line.trim()
+            
+            if (trimmedLine.startsWith("DEPOT_SECTION")) {
+                inDepotSection = true
+                continue
+            }
+            
+            if (inDepotSection) {
+                // Stop at -1 or EOF
+                if (trimmedLine == "-1" || trimmedLine == "EOF") {
+                    break
+                }
+                
+                // Parse the depot vertex number
+                val depotValue = trimmedLine.split(Regex("\\s+"))
+                    .firstOrNull()
+                    ?.toIntOrNull()
+                
+                if (depotValue != null) {
+                    log.debug { "Found depot from DEPOT_SECTION: $depotValue" }
+                    return depotValue
+                }
+            }
+        }
+        
+        return null
     }
 
     /**

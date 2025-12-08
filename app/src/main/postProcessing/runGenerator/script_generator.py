@@ -167,7 +167,7 @@ class Controller:
                     vrp_cases.append((filename, vehicle_count))
 
         pNorm = [2,3,5,10] if self.objective == "p-norm" else [1]
-        fairnessCoefficient = np.arange(0,1,0.05) if self.objective in ["eps-fair", "delta-fair"] else [0.0]
+        fairnessCoefficient = np.arange(0.05,1,0.05) if self.objective in ["eps-fair", "delta-fair"] else [0.0]
         fairnessCoefficient = [round(x,2) for x in fairnessCoefficient]
         
         # Cases for TSP instances
