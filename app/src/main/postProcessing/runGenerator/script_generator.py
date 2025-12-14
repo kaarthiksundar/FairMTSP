@@ -151,7 +151,7 @@ class Controller:
 
     def _collect_cases(self):
         # TSP instances with multiple vehicle counts
-        tsp_instances = ['att48.tsp', 'bayg29.tsp', 'dantzig42.tsp', 
+        tsp_instances = ['att48.tsp', 'bayg29.tsp', 'bays29.tsp', 'burma14.tsp', 'eil51.tsp', 'eil76.tsp', 'dantzig42.tsp', 
                         'fri26.tsp', 'gr17.tsp', 'gr21.tsp', 'gr24.tsp', 'gr48.tsp']
         vehicles_count = [3,4,5]
 
