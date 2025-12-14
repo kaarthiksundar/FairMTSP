@@ -87,6 +87,7 @@ class BranchAndCutSolver(
         addLengthDefinition()
         addDepotVisitRedundantConstraints()
         addTwoVertexSECs()
+        addSingleTourConstraints()
         addSymmetryConstraints()
         if (objectiveType == "min-max")
             addMinMaxConstraints()
@@ -96,6 +97,23 @@ class BranchAndCutSolver(
             addEPSFairConstraints()
         if (objectiveType == "delta-fair") {
             addDeltaFairConstraints()
+        }
+    }
+    /* 
+    These set of constraints is to ensure that each vehicle has only one tour
+    SUM(x_e) <= 2 for all edges e in the graph with depot as source or target (d is the depot)
+    */
+    private fun addSingleTourConstraints() {
+        val depotEdges = graph.edgesOf(instance.depot)
+        val coefficients = DoubleArray(depotEdges.size) { 1.0 }
+        (0 until instance.numVehicles).forEach { vehicle ->
+            val tourExpr: IloLinearNumExpr = cplex.linearNumExpr()
+            tourExpr.addTerms(
+                depotEdges.map { edgeVariable[vehicle]?.get(it) }.toTypedArray(),
+                coefficients
+            )
+            cplex.addLe(tourExpr, 2.0, "singleTour_${vehicle}")
+            tourExpr.clear()
         }
     }
 
