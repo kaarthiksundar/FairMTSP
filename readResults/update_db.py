@@ -9,7 +9,7 @@ class Config(object):
     def __init__(self):
         folder_path = os.path.dirname(os.path.realpath(__file__))
         self.base_path = os.path.abspath(os.path.join(folder_path, '..'))
-        self.results_path = os.path.join(self.base_path, 'results')
+        self.results_path = os.path.join(self.base_path, 'results/round2')
         self.db_path = os.path.join(self.results_path, 'results.db')
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
@@ -49,16 +49,16 @@ class Controller:
     def run(self):
         self._connection = sqlite3.connect(self.config.db_path)
         self._cursor = self._connection.cursor()
-        table_names = ['vehi3','vehi4','vehi5']
+        table_names = ['vehi3','vehi4','vehi5','vehi6','vehi7']
         dirList = ['min', 'minmax', 'pNorm', 'epsFair', 'deltaFair']
         for name in table_names:
             for dir in dirList:
                 self._write_result_table(name, dir)
 
-        self._write_result_table('vehi5', 'COF')
-        for name in table_names:
-            self._write_result_table(name, 'minmaxFair')
-            self._write_result_table(name, 'pNormFair')
+        # self._write_result_table('vehi5', 'COF')
+        # for name in table_names:
+        #     self._write_result_table(name, 'minmaxFair')
+        #     self._write_result_table(name, 'pNormFair')
 
         self._connection.commit()
         self._cursor.close()
@@ -77,10 +77,15 @@ class Controller:
                 
                 with open(os.path.join(dir_path, f),'r') as fin:
                     result_dict = json.load(fin)
-                    if table_name[-1] in ['3','4','5'] and result_dict['numVehicles'] != int(table_name[-1]):
+                    if table_name[-1] in ['3','4','5','6','7'] and result_dict['numVehicles'] != int(table_name[-1]):
                         continue
-            
-                    table_values = [result_dict['instanceName'], result_dict['numVehicles'], result_dict['numVertices']-1,  result_dict['objectiveType'], result_dict['pNorm'], result_dict['fairnessCoefficient'], result_dict['tourCost'], sum(result_dict['tourCost']), round(result_dict['optimalityGapPercent']/100, 2), result_dict['computationTimeInSec'], result_dict['giniIndex'], result_dict['jainIndex'], result_dict['normIndex']]
+                    
+                    try:
+                        table_values = [result_dict['instanceName'], result_dict['numVehicles'], result_dict['numVertices']-1,  result_dict['objectiveType'], result_dict['pNorm'], result_dict['fairnessCoefficient'], result_dict['tourCost'], sum(result_dict['tourCost']), round(result_dict['optimalityGapPercent']/100, 2), result_dict['computationTimeInSec'], result_dict['giniIndex'], result_dict['jainIndex'], result_dict['normIndex']]
+                    except KeyError as ke:
+                        log.error(f"missing key {ke} in file {f}, skipping")
+                        input("Press Enter to continue...")
+                        continue
                     values = [f"'{v}'" for v in table_values]
                     
                     cmd = f"""

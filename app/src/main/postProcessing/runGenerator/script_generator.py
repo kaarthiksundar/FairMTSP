@@ -99,98 +99,14 @@ class Controller:
     def _setup_runs(self):
         cases = self._collect_cases()
         self._generate_setup(cases)
+        
 
-    def _generate_setup(self, cases):
+    def _generate_setup(self, cases, run_type = None):
+        if run_type is None:
+            run_type = self.objective
+
         runs_file_path = os.path.join(
-            self.config.script_folder_path, self.objective+'_runs.txt')
-
-        with open(runs_file_path, 'w') as f_out:
-            for instance, vehicle, fc, p in cases:
-                cmd = [c for c in self._base_cmd]
-                cmd.extend([
-                    "-n", instance,
-                    "-path", "./data/ "
-                    "-r", "./results/ "
-                    "-v", str(vehicle),
-                    "-obj", self.objective,
-                    "-fc", str(fc),
-                    "-p", str(p),
-                    "-t", str(3600)
-                ])
-                f_out.write(' '.join(cmd))
-                f_out.write('\n')
-
-        self._prepare_test_folder(cases)
-
-    def _prepare_test_folder(self, cases):
-        rt_path = os.path.join(self.config.base_path, 'runs', self.objective)
-        os.makedirs(rt_path, exist_ok=True)
-        shutil.copy(self.config.jar_path, os.path.join(rt_path, 'uber.jar'))
-        runs_file_name = '{}_runs.txt'.format(self.objective)
-        for f in [runs_file_name, 'submit-batch.sh', 'slurm-batch-job.sh']:
-            src_path = os.path.join(self.config.script_folder_path, f)
-            dst_path = os.path.join(rt_path, f)
-            shutil.copy(src_path, dst_path)
-
-        os.remove(os.path.join(self.config.script_folder_path, runs_file_name))
-        log.info('copied runs file and shell scripts to {}'.format(rt_path))
-
-        test_data_path = os.path.join(rt_path, 'data')
-        os.makedirs(test_data_path, exist_ok=True)
-        for instance,_,_,_ in cases:
-            src = os.path.join(self.config.data_path, instance)
-            dst = os.path.join(test_data_path, instance)
-            shutil.copy(src, dst)
-
-
-        for name in ['results', 'logs', 'output']:
-            folder_path = os.path.join(rt_path, name)
-            os.makedirs(folder_path, exist_ok=True)
-
-        log.info('Test folder completed')
-
-    def _collect_cases(self):
-        # TSP instances with multiple vehicle counts
-        tsp_instances = ['att48.tsp', 'bayg29.tsp', 'bays29.tsp', 'burma14.tsp', 'eil51.tsp', 'eil76.tsp', 'dantzig42.tsp', 
-                        'fri26.tsp', 'gr17.tsp', 'gr21.tsp', 'gr24.tsp', 'gr48.tsp']
-        vehicles_count = [3,4,5]
-
-        # VRP instances - extract vehicle count from filename
-        vrp_cases = []
-        data_files = os.listdir(self.config.data_path)
-        for filename in data_files:
-            if filename.endswith('.vrp') and not os.path.isdir(os.path.join(self.config.data_path, filename)):
-                # Extract vehicle count from filename (e.g., A-n32-k5.vrp -> 5)
-                match = re.search(r'-k(\d+)\.vrp$', filename)
-                if match:
-                    vehicle_count = int(match.group(1))
-                    vrp_cases.append((filename, vehicle_count))
-
-        pNorm = [2,3,5,10] if self.objective == "p-norm" else [1]
-        fairnessCoefficient = np.arange(0.05,1,0.05) if self.objective in ["eps-fair", "delta-fair"] else [0.0]
-        fairnessCoefficient = [round(x,2) for x in fairnessCoefficient]
-        
-        # Cases for TSP instances
-        tsp_cases = [(instance, vehicle, fc, p) for instance in tsp_instances 
-                                            for vehicle in vehicles_count
-                                            for fc in fairnessCoefficient 
-                                            for p in pNorm]
-        
-        # Cases for VRP instances (each with its specific vehicle count)
-        vrp_cases_list = [(instance, vehicle, fc, p) for instance, vehicle in vrp_cases
-                                            for fc in fairnessCoefficient 
-                                            for p in pNorm]
-        
-        # Combine both types of cases
-        cases = tsp_cases + vrp_cases_list
-        
-        return cases
-        
-    
-    def _COF_runs(self):
-        cases = self._COF_cases()
-        runs_file_path = os.path.join(
-        self.config.script_folder_path, 'COF_runs.txt')
+            self.config.script_folder_path, run_type+'_runs.txt')
 
         with open(runs_file_path, 'w') as f_out:
             for instance, vehicle, objective, fc, p in cases:
@@ -200,18 +116,24 @@ class Controller:
                     "-path", "./data/ "
                     "-r", "./results/ "
                     "-v", str(vehicle),
-                    "-obj", objective,
+                    "-obj", str(objective),
                     "-fc", str(fc),
                     "-p", str(p),
                     "-t", str(3600)
                 ])
                 f_out.write(' '.join(cmd))
                 f_out.write('\n')
+            
+        self._prepare_test_folder(cases, run_type)
 
-        rt_path = os.path.join(self.config.base_path, 'runs', 'COF')
+    def _prepare_test_folder(self, cases, run_type = None):
+        if run_type is None:
+            run_type = self.objective
+
+        rt_path = os.path.join(self.config.base_path, 'runs', run_type)
         os.makedirs(rt_path, exist_ok=True)
         shutil.copy(self.config.jar_path, os.path.join(rt_path, 'uber.jar'))
-        runs_file_name = 'COF_runs.txt'
+        runs_file_name = '{}_runs.txt'.format(run_type)
         for f in [runs_file_name, 'submit-batch.sh', 'slurm-batch-job.sh']:
             src_path = os.path.join(self.config.script_folder_path, f)
             dst_path = os.path.join(rt_path, f)
@@ -234,130 +156,80 @@ class Controller:
 
         log.info('Test folder completed')
 
+    def _get_all_instance_vehicle_pairs(self):
+        tsp_instances = ['att48.tsp', 'bayg29.tsp', 'bays29.tsp', 'burma14.tsp', 'eil51.tsp', 'eil76.tsp', 'dantzig42.tsp', 
+                        'fri26.tsp', 'gr17.tsp', 'gr21.tsp', 'gr24.tsp', 'gr48.tsp']
+        vehicles_count = [3,4,5]
+        
+        # VRP instances - extract vehicle count from filename
+        vrp_cases = []
+        data_files = os.listdir(self.config.data_path)
+        for filename in data_files:
+            if filename.endswith('.vrp') and not os.path.isdir(os.path.join(self.config.data_path, filename)):
+                # Extract vehicle count from filename (e.g., A-n32-k5.vrp -> 5)
+                match = re.search(r'-k(\d+)\.vrp$', filename)
+                if match:
+                    vehicle_count = int(match.group(1))
+                    vrp_cases.append((filename, vehicle_count))
+        
+        return [(instance, vehicle) for instance in tsp_instances for vehicle in vehicles_count] + vrp_cases
+
+    def _collect_cases(self):
+        all_instance_vehicle_pairs = self._get_all_instance_vehicle_pairs()
+
+        pNorm = [2,3,5,10] if self.objective == "p-norm" else [1]
+        fairnessCoefficient = np.arange(0.05,1,0.05) if self.objective in ["eps-fair", "delta-fair"] else [0.0]
+        fairnessCoefficient = [round(x,2) for x in fairnessCoefficient]
+
+        all_cases = [(instance, vehicle, self.objective, fc, p) for instance, vehicle in all_instance_vehicle_pairs
+                                            for fc in fairnessCoefficient 
+                                            for p in pNorm]
+        return all_cases
+      
+    def _COF_runs(self):
+        cases = self._COF_cases()
+        self._generate_setup(cases, 'COF')
+
     def _COF_cases(self):
         instance_names = ['eil51.tsp']
         vehicles_count = [5]
         pNorm = [1]
         fairnessCoefficient = np.arange(0,1,0.05) 
-        self.objective = ["eps-fair", "delta-fair"]
+        objective = ["eps-fair", "delta-fair"]
         fairnessCoefficient = [round(x,2) for x in fairnessCoefficient]
         return [(instance, vehicle, obj, fc, p) for instance in instance_names for vehicle in vehicles_count
-                                            for obj in self.objective for fc in fairnessCoefficient for p in pNorm]
+                                            for obj in objective for fc in fairnessCoefficient for p in pNorm]
+
+    def _fair_cases(self, objective_type, pNorm=1):
+        if objective_type not in ['min-max', 'p-norm']:
+            raise ValueError(f"Objective type should be 'min-max' or 'p-norm'. Given: {objective_type}")
+
+        all_instance_vehicle_pairs = self._get_all_instance_vehicle_pairs()
+        cases = []
+        for instance, numVehicle in all_instance_vehicle_pairs:
+            for objective in ['eps-fair', 'delta-fair']:
+                fairnessIndex = self.getFairnessIndex(instance, numVehicle, objective_type, pNorm)
+                print(instance, numVehicle, fairnessIndex)
+                if objective == 'eps-fair':
+                    fc = round(floor(float(fairnessIndex['normIndex'])*10000)/10000,4)
+                elif objective == 'delta-fair':
+                    fc = round(ceil(float(fairnessIndex['giniIndex'])*10000)/10000,4)
+                cases.append((instance, numVehicle, objective, fc, 1))
+        return cases
 
     def minmaxFair_runs(self):
         # generate eps/delta fair runs corresponding to minmax fairness coefficient
-        
-        runs_file_path = os.path.join(
-        self.config.script_folder_path, 'minmaxFair_runs.txt')
-
-        with open(runs_file_path, 'w') as f_out:
-            for instance in ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
-                for objective in ['eps-fair', 'delta-fair']:
-                    for numVehicle in [3,4,5]:
-                        fairnessIndex = self.getFairnessIndex(instance, numVehicle, 'min-max')
-                        if objective == 'eps-fair':
-                            fc = round(floor(float(fairnessIndex['normIndex'])*10000)/10000,4)
-                        elif objective == 'delta-fair':
-                            fc = round(ceil(float(fairnessIndex['giniIndex'])*10000)/10000,4)
-                   
-                        cmd = [c for c in self._base_cmd]
-                        cmd.extend([
-                            "-n", instance,
-                            "-path", "./data/ "
-                            "-r", "./results/ "
-                            "-v", str(numVehicle),
-                            "-obj", objective,
-                            "-fc", str(fc),
-                            "-p", str(1),
-                            "-t", str(3600)
-                        ])
-                        f_out.write(' '.join(cmd))
-                        f_out.write('\n')
-
-        rt_path = os.path.join(self.config.base_path, 'runs', 'minmaxFair')
-        os.makedirs(rt_path, exist_ok=True)
-        shutil.copy(self.config.jar_path, os.path.join(rt_path, 'uber.jar'))
-        runs_file_name = 'minmaxFair_runs.txt'
-        for f in [runs_file_name, 'submit-batch.sh', 'slurm-batch-job.sh']:
-            src_path = os.path.join(self.config.script_folder_path, f)
-            dst_path = os.path.join(rt_path, f)
-            shutil.copy(src_path, dst_path)
-
-        os.remove(os.path.join(self.config.script_folder_path, runs_file_name))
-        log.info('copied runs file and shell scripts to {}'.format(rt_path))
-
-        test_data_path = os.path.join(rt_path, 'data')
-        os.makedirs(test_data_path, exist_ok=True)
-        for instance in ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
-            src = os.path.join(self.config.data_path, instance)
-            dst = os.path.join(test_data_path, instance)
-            shutil.copy(src, dst)
-
-
-        for name in ['results', 'logs', 'output']:
-            folder_path = os.path.join(rt_path, name)
-            os.makedirs(folder_path, exist_ok=True)
-
-        log.info('Test folder completed')
+        cases = self._fair_cases(objective_type = 'min-max')
+        self._generate_setup(cases, 'minmaxFair')
 
     def pNormFair_runs(self):
          # generate eps/delta fair runs corresponding to p-norm fairness coefficient with p=2
-        runs_file_path = os.path.join(
-        self.config.script_folder_path, 'pNormFair_runs.txt')
-
-        with open(runs_file_path, 'w') as f_out:
-            for instance in ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
-                for objective in ['eps-fair', 'delta-fair']:
-                    for numVehicle in [3,4,5]:
-                        fairnessIndex = self.getFairnessIndex(instance, numVehicle, 'p-norm', pNorm=2)
-                        if objective == 'eps-fair':
-                            fc = round(floor(float(fairnessIndex['normIndex'])*10000)/10000,4)
-                        elif objective == 'delta-fair':
-                            fc = round(ceil(float(fairnessIndex['giniIndex'])*10000)/10000,4)
-                   
-                        cmd = [c for c in self._base_cmd]
-                        cmd.extend([
-                            "-n", instance,
-                            "-path", "./data/ "
-                            "-r", "./results/ "
-                            "-v", str(numVehicle),
-                            "-obj", objective,
-                            "-fc", str(fc),
-                            "-p", str(1),
-                            "-t", str(3600)
-                        ])
-                        f_out.write(' '.join(cmd))
-                        f_out.write('\n')
-
-        rt_path = os.path.join(self.config.base_path, 'runs', 'pNormFair')
-        os.makedirs(rt_path, exist_ok=True)
-        shutil.copy(self.config.jar_path, os.path.join(rt_path, 'uber.jar'))
-        runs_file_name = 'pNormFair_runs.txt'
-        for f in [runs_file_name, 'submit-batch.sh', 'slurm-batch-job.sh']:
-            src_path = os.path.join(self.config.script_folder_path, f)
-            dst_path = os.path.join(rt_path, f)
-            shutil.copy(src_path, dst_path)
-
-        os.remove(os.path.join(self.config.script_folder_path, runs_file_name))
-        log.info('copied runs file and shell scripts to {}'.format(rt_path))
-
-        test_data_path = os.path.join(rt_path, 'data')
-        os.makedirs(test_data_path, exist_ok=True)
-        for instance in ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
-            src = os.path.join(self.config.data_path, instance)
-            dst = os.path.join(test_data_path, instance)
-            shutil.copy(src, dst)
-
-
-        for name in ['results', 'logs', 'output']:
-            folder_path = os.path.join(rt_path, name)
-            os.makedirs(folder_path, exist_ok=True)
-
-        log.info('Test folder completed')
+        cases = self._fair_cases(objective_type = 'p-norm', pNorm = 2)
+        self._generate_setup(cases, 'pNormFair')
     
     def getFairnessIndex(self, instance_name, numVehicles, objective, pNorm = 1, fc = 0.0):
         # returns jainIndex, giniIndex and normIndex corresponding to given instance 
-        connection = sqlite3.connect(os.path.join(get_base_path(), 'results', 'results.db'))
+        connection = sqlite3.connect(os.path.join(get_base_path(), 'results/round2', 'results.db'))
         cursor = connection.cursor()
      
         cursor.execute(f"""
@@ -369,57 +241,13 @@ class Controller:
         fairIndex = {'giniIndex': result[0], 'jainIndex':result[1], 'normIndex':result[2]} if result else None 
         return fairIndex
 
-
     def _seattle_runs(self):
-        self.objective = ['eps-fair','delta-fair']
+        objective = ['eps-fair','delta-fair']
         fairnessCoefficient = [0.1, 0.3, 0.5, 0.7, 0.9]
         vehicle = 4
-        cases =  [('seattle.tsp', vehicle, obj, fc) for obj in self.objective for fc in fairnessCoefficient]
+        cases =  [('seattle.tsp', vehicle, obj, fc, 1) for obj in objective for fc in fairnessCoefficient]
 
-        runs_file_path = os.path.join(
-            self.config.script_folder_path, 'seattle_runs.txt')
-
-        with open(runs_file_path, 'w') as f_out:
-            for instance, vehicle, obj, fc in cases:
-                cmd = [c for c in self._base_cmd]
-                cmd.extend([
-                    "-n", instance,
-                    "-path", "./data/ "
-                    "-r", "./results/ "
-                    "-v", str(vehicle),
-                    "-obj", obj,
-                    "-fc", str(fc),
-                    "-p", str(1),
-                    "-t", str(3600)
-                ])
-                f_out.write(' '.join(cmd))
-                f_out.write('\n')
-
-        rt_path = os.path.join(self.config.base_path, 'runs', 'seattle')
-        os.makedirs(rt_path, exist_ok=True)
-        shutil.copy(self.config.jar_path, os.path.join(rt_path, 'uber.jar'))
-        runs_file_name = 'seattle_runs.txt'
-        for f in [runs_file_name, 'submit-batch.sh', 'slurm-batch-job.sh']:
-            src_path = os.path.join(self.config.script_folder_path, f)
-            dst_path = os.path.join(rt_path, f)
-            shutil.copy(src_path, dst_path)
-
-        os.remove(os.path.join(self.config.script_folder_path, runs_file_name))
-        log.info('copied runs file and shell scripts to {}'.format(rt_path))
-
-        test_data_path = os.path.join(rt_path, 'data')
-        os.makedirs(test_data_path, exist_ok=True)
-        for instance,_,_,_ in cases:
-            src = os.path.join(self.config.data_path, instance)
-            dst = os.path.join(test_data_path, instance)
-            shutil.copy(src, dst)
-
-
-        for name in ['results', 'logs', 'output']:
-            folder_path = os.path.join(rt_path, name)
-            os.makedirs(folder_path, exist_ok=True)
-
-        log.info('Test folder completed')
+        self._generate_setup(cases, 'seattle')
 
     def _prepare_uberjar(self):
         os.chdir(self.config.base_path)

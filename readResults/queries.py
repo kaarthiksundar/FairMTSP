@@ -1,4 +1,4 @@
-import sqlite3, logging, argparse, ast
+import sqlite3, logging, argparse, ast, re
 import csv, os, numpy as np
 from math import ceil, floor
 
@@ -102,8 +102,14 @@ class databaseToCSV():
                 csv_writer.writerow(['Instance Name', 'Number of Vehicles', 'min (sec)', 'minmax', 'deltaFair 0.1', 'deltaFair 0.3', 'deltaFair 0.5', 'deltaFair 0.7', 'deltaFair 0.9'])  # Write header
 
             data = []
-            for instance_name in ['burma14.tsp', 'bays29.tsp', 'eil51.tsp', 'eil76.tsp']:
-                for numVehicle in [3,4,5]:
+            instances = ['A-n32-k5.vrp', 'A-n33-k5.vrp', 'A-n33-k6.vrp', 'A-n34-k5.vrp', 'A-n36-k5.vrp', 'A-n37-k5.vrp', 'A-n37-k6.vrp', 'A-n38-k5.vrp', 'A-n39-k5.vrp', 'A-n39-k6.vrp', 'A-n44-k6.vrp', 'A-n45-k6.vrp', 'A-n45-k7.vrp', 'A-n46-k7.vrp', 'A-n48-k7.vrp', 'E-n13-k4.vrp', 'E-n22-k4.vrp', 'E-n23-k3.vrp', 'E-n30-k3.vrp', 'E-n31-k7.vrp', 'E-n33-k4.vrp', 'E-n51-k5.vrp']
+            for instance_name in instances:
+                if instance_name.split('.')[-1] == 'tsp':
+                    vehicles = [3,4,5]
+                elif instance_name.split('.')[-1] == 'vrp':
+                    match = re.search(r'-k(\d+)', instance_name)
+                    vehicles = [int(match.group(1))] if match else []
+                for numVehicle in vehicles:
                     data = [instance_name.split(".")[0], numVehicle]
                     min_time = 0
                     for objective in ['min', 'min-max', table_objective]:
@@ -390,7 +396,7 @@ def main():
     try:
         folder_path = os.path.dirname(os.path.realpath(__file__))
         base_path = os.path.abspath(os.path.join(folder_path, '..'))
-        results_path = os.path.join(base_path, 'results')
+        results_path = os.path.join(base_path, 'results/round2')
         db_path = os.path.join(results_path, 'results.db')
         
         tableName = handle_command_line()
