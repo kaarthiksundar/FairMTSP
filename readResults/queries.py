@@ -1,6 +1,11 @@
 import sqlite3, logging, argparse, ast, re
 import csv, os, numpy as np
 from math import ceil, floor
+import sys
+
+# Add the script_generator path to sys.path to import the function
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'app', 'src', 'main', 'postProcessing', 'runGenerator'))
+from script_generator import get_all_instance_vehicle_pairs, get_data_path
 
 log = logging.getLogger(__name__)
 
@@ -102,42 +107,39 @@ class databaseToCSV():
                 csv_writer.writerow(['Instance Name', 'Number of Vehicles', 'min (sec)', 'minmax', 'deltaFair 0.1', 'deltaFair 0.3', 'deltaFair 0.5', 'deltaFair 0.7', 'deltaFair 0.9'])  # Write header
 
             data = []
-            instances = ['A-n32-k5.vrp', 'A-n33-k5.vrp', 'A-n33-k6.vrp', 'A-n34-k5.vrp', 'A-n36-k5.vrp', 'A-n37-k5.vrp', 'A-n37-k6.vrp', 'A-n38-k5.vrp', 'A-n39-k5.vrp', 'A-n39-k6.vrp', 'A-n44-k6.vrp', 'A-n45-k6.vrp', 'A-n45-k7.vrp', 'A-n46-k7.vrp', 'A-n48-k7.vrp', 'E-n13-k4.vrp', 'E-n22-k4.vrp', 'E-n23-k3.vrp', 'E-n30-k3.vrp', 'E-n31-k7.vrp', 'E-n33-k4.vrp', 'E-n51-k5.vrp']
-            for instance_name in instances:
-                if instance_name.split('.')[-1] == 'tsp':
-                    vehicles = [3,4,5]
-                elif instance_name.split('.')[-1] == 'vrp':
-                    match = re.search(r'-k(\d+)', instance_name)
-                    vehicles = [int(match.group(1))] if match else []
-                for numVehicle in vehicles:
-                    data = [instance_name.split(".")[0], numVehicle]
-                    min_time = 0
-                    for objective in ['min', 'min-max', table_objective]:
-                        if objective == 'min':
-                            min_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle))
-                            data.append(min_time)
+            # Get all instance-vehicle pairs using the shared function
+            data_path = get_data_path()
+            instance_vehicle_pairs = get_all_instance_vehicle_pairs(data_path)
+            
+            for instance_name, numVehicle in instance_vehicle_pairs:
+                data = [instance_name.split(".")[0], numVehicle]
+                min_time = 0
+                for objective in ['min', 'min-max', table_objective]:
+                    if objective == 'min':
+                        min_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle))
+                        data.append(min_time)
 
-                        if objective == 'min-max':
-                            comp_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle))
+                    if objective == 'min-max':
+                        comp_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle))
+                        # data.append(round(comp_time/min_time, 2)) if comp_time<3600 else data.append('-')
+                        data.append(round(comp_time,2)) if comp_time<3600 else data.append('-')
+
+
+                    if objective == 'p-norm':
+                        pNorm = [2,3,5,10]
+                        for p in pNorm:
+                            comp_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle, pNorm=p))
                             # data.append(round(comp_time/min_time, 2)) if comp_time<3600 else data.append('-')
                             data.append(round(comp_time,2)) if comp_time<3600 else data.append('-')
 
+                    if objective in ['eps-fair', 'delta-fair']:
+                        fairnessCoefficient = [0.1,0.3,0.5,0.7,0.9]
+                        for fc in fairnessCoefficient:
+                            comp_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc))
+                            # data.append(round(comp_time/min_time, 2)) if comp_time<3600 else data.append('-')
+                            data.append(round(comp_time,2)) if comp_time<3600 else data.append('-')
 
-                        if objective == 'p-norm':
-                            pNorm = [2,3,5,10]
-                            for p in pNorm:
-                                comp_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle, pNorm=p))
-                                # data.append(round(comp_time/min_time, 2)) if comp_time<3600 else data.append('-')
-                                data.append(round(comp_time,2)) if comp_time<3600 else data.append('-')
-
-                        if objective in ['eps-fair', 'delta-fair']:
-                            fairnessCoefficient = [0.1,0.3,0.5,0.7,0.9]
-                            for fc in fairnessCoefficient:
-                                comp_time = float(self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc))
-                                # data.append(round(comp_time/min_time, 2)) if comp_time<3600 else data.append('-')
-                                data.append(round(comp_time,2)) if comp_time<3600 else data.append('-')
-
-                    csv_writer.writerow(data)
+                csv_writer.writerow(data)
 
     def export_all_COF_to_csv(self):
         '''Not used in the paper'''
@@ -272,29 +274,32 @@ class databaseToCSV():
                                  'epsFair cost', 'epsFair COF', 'deltaFair cost', 'deltaFair COF' ])
 
             data = []
-            for instance_name in ['burma14.tsp','bays29.tsp', 'eil51.tsp']:
-                for numVehicle in [3,4,5]:
+            data_path = get_data_path()
+            instance_vehicle_pairs = get_all_instance_vehicle_pairs(data_path)
 
-                    min_cost = self._getSumofTours(instance_name=instance_name, objective='min', numVehicles=numVehicle)
+            for instance_name, numVehicle in instance_vehicle_pairs:
 
-                    comp_time = self._getComputationTime(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
-                    if float(comp_time) > 3600:
-                        continue
-                    minmax_cost = self._getSumofTours(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
-                    minmax_fairnessIndex = self._getFairnessIndex(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
-                    data = [instance_name.split(".")[0], numVehicle, minmax_cost, round((minmax_cost-min_cost)/min_cost, 3) ,round(minmax_fairnessIndex['normIndex'],5), round(minmax_fairnessIndex['giniIndex'],5)]
+                min_cost = self._getSumofTours(instance_name=instance_name, objective='min', numVehicles=numVehicle)
 
-                    for objective in ['eps-fair', 'delta-fair']:
-                        if objective == 'eps-fair':
-                            fc = round(floor(float(minmax_fairnessIndex['normIndex'])*10000)/10000,4)
-                            cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
-                            data.extend([cost, round((cost-min_cost)/min_cost, 3)])
-                        if objective == 'delta-fair':
-                            fc = round(ceil(float(minmax_fairnessIndex['giniIndex'])*10000)/10000,4)
-                            cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
-                            data.extend([cost, round((cost-min_cost)/min_cost, 3)])
+                comp_time = self._getComputationTime(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
+                print(instance_name, numVehicle, comp_time)
+                if float(comp_time) > 3600:
+                    continue
+                minmax_cost = self._getSumofTours(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
+                minmax_fairnessIndex = self._getFairnessIndex(instance_name=instance_name, objective='min-max', numVehicles=numVehicle)
+                data = [instance_name.split(".")[0], numVehicle, minmax_cost, round((minmax_cost-min_cost)/min_cost, 3) ,round(minmax_fairnessIndex['normIndex'],5), round(minmax_fairnessIndex['giniIndex'],5)]
 
-                    csv_writer.writerow(data)
+                for objective in ['eps-fair', 'delta-fair']:
+                    if objective == 'eps-fair':
+                        fc = round(floor(float(minmax_fairnessIndex['normIndex'])*10000)/10000,4)
+                        cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
+                        data.extend([cost, round((cost-min_cost)/min_cost, 3)])
+                    if objective == 'delta-fair':
+                        fc = round(ceil(float(minmax_fairnessIndex['giniIndex'])*10000)/10000,4)
+                        cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
+                        data.extend([cost, round((cost-min_cost)/min_cost, 3)])
+
+                csv_writer.writerow(data)
 
     def export_pNormFair_to_csv(self):
         '''Not used in the paper'''

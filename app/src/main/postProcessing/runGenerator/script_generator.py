@@ -47,6 +47,36 @@ def get_base_path() -> str:
 def get_data_path() -> str:
     return os.path.join(get_base_path(), 'app', 'data')
 
+def get_all_instance_vehicle_pairs(data_path: str = None):
+    """
+    Get all instance-vehicle pairs for TSP and VRP instances.
+    
+    Args:
+        data_path: Path to the data directory. If None, uses get_data_path().
+    
+    Returns:
+        List of tuples (instance_name, vehicle_count)
+    """
+    if data_path is None:
+        data_path = get_data_path()
+    
+    tsp_instances = ['att48.tsp', 'bayg29.tsp', 'bays29.tsp', 'burma14.tsp', 'eil51.tsp', 'eil76.tsp', 'dantzig42.tsp', 
+                    'fri26.tsp', 'gr17.tsp', 'gr21.tsp', 'gr24.tsp', 'gr48.tsp']
+    vehicles_count = [3,4,5]
+    
+    # VRP instances - extract vehicle count from filename
+    vrp_cases = []
+    data_files = os.listdir(data_path)
+    for filename in data_files:
+        if filename.endswith('.vrp') and not os.path.isdir(os.path.join(data_path, filename)):
+            # Extract vehicle count from filename (e.g., A-n32-k5.vrp -> 5)
+            match = re.search(r'-k(\d+)\.vrp$', filename)
+            if match:
+                vehicle_count = int(match.group(1))
+                vrp_cases.append((filename, vehicle_count))
+    
+    return [(instance, vehicle) for instance in tsp_instances for vehicle in vehicles_count] + vrp_cases
+
 def guess_cplex_library_path():
     gp_path = os.path.join(os.path.expanduser(
         "~"), ".gradle", "gradle.properties")
@@ -157,22 +187,7 @@ class Controller:
         log.info('Test folder completed')
 
     def _get_all_instance_vehicle_pairs(self):
-        tsp_instances = ['att48.tsp', 'bayg29.tsp', 'bays29.tsp', 'burma14.tsp', 'eil51.tsp', 'eil76.tsp', 'dantzig42.tsp', 
-                        'fri26.tsp', 'gr17.tsp', 'gr21.tsp', 'gr24.tsp', 'gr48.tsp']
-        vehicles_count = [3,4,5]
-        
-        # VRP instances - extract vehicle count from filename
-        vrp_cases = []
-        data_files = os.listdir(self.config.data_path)
-        for filename in data_files:
-            if filename.endswith('.vrp') and not os.path.isdir(os.path.join(self.config.data_path, filename)):
-                # Extract vehicle count from filename (e.g., A-n32-k5.vrp -> 5)
-                match = re.search(r'-k(\d+)\.vrp$', filename)
-                if match:
-                    vehicle_count = int(match.group(1))
-                    vrp_cases.append((filename, vehicle_count))
-        
-        return [(instance, vehicle) for instance in tsp_instances for vehicle in vehicles_count] + vrp_cases
+        return get_all_instance_vehicle_pairs(self.config.data_path)
 
     def _collect_cases(self):
         all_instance_vehicle_pairs = self._get_all_instance_vehicle_pairs()
@@ -209,7 +224,6 @@ class Controller:
         for instance, numVehicle in all_instance_vehicle_pairs:
             for objective in ['eps-fair', 'delta-fair']:
                 fairnessIndex = self.getFairnessIndex(instance, numVehicle, objective_type, pNorm)
-                print(instance, numVehicle, fairnessIndex)
                 if objective == 'eps-fair':
                     fc = round(floor(float(fairnessIndex['normIndex'])*10000)/10000,4)
                 elif objective == 'delta-fair':

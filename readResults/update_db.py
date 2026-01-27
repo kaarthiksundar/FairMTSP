@@ -9,7 +9,7 @@ class Config(object):
     def __init__(self):
         folder_path = os.path.dirname(os.path.realpath(__file__))
         self.base_path = os.path.abspath(os.path.join(folder_path, '..'))
-        self.results_path = os.path.join(self.base_path, 'results/round2')
+        self.results_path = os.path.join(self.base_path, 'results/round-2')
         self.db_path = os.path.join(self.results_path, 'results.db')
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
@@ -50,7 +50,7 @@ class Controller:
         self._connection = sqlite3.connect(self.config.db_path)
         self._cursor = self._connection.cursor()
         table_names = ['vehi3','vehi4','vehi5','vehi6','vehi7']
-        dirList = ['min', 'minmax', 'pNorm', 'epsFair', 'deltaFair']
+        dirList = ['min', 'minmax', 'pNorm', 'epsFair', 'deltaFair', 'minmaxFair']
         for name in table_names:
             for dir in dirList:
                 self._write_result_table(name, dir)
