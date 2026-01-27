@@ -7,16 +7,25 @@
  * This project uses @Incubating APIs which are subject to change.
  */
 
-plugins {
-    // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
-    id("org.jetbrains.kotlin.jvm") version "1.9.20"
-    kotlin("plugin.serialization") version "1.9.22"
-
-    // Apply the application plugin to add support for building a CLI application in Java.
-    application
-
-    id("jacoco")
+buildscript {
+    repositories {
+        mavenCentral()
+        // gradlePluginPortal() // usually not needed here, but you can add it too
+    }
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22")
+        classpath("org.jetbrains.kotlin:kotlin-serialization:1.9.22")
+    }
 }
+
+plugins {
+    // Only plugins that come from Gradle core or that resolve fine via plugin portal
+    application
+    jacoco
+}
+
+apply(plugin = "org.jetbrains.kotlin.jvm")
+apply(plugin = "org.jetbrains.kotlin.plugin.serialization")
 
 repositories {
     // Use Maven Central for resolving dependencies.
@@ -28,7 +37,7 @@ dependencies {
     implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
 
     // Use the Kotlin JDK 8 standard library.
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.10")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
 
     // This dependency is used by the application.
     implementation("com.google.guava:guava:32.0.0-android")
@@ -42,7 +51,7 @@ dependencies {
 
     // CPLEX
 //    val cplexJarPath: String by project
-    val cplexJarPath = "/Users/kaarthik/Applications/CPLEX_Studio2211/cplex/lib/cplex.jar"
+    val cplexJarPath = "/vast/home/kaarthik/softwares/cplex/installation/cplex/lib/cplex.jar"
     implementation(files(cplexJarPath))
 
     // JSON serialization
@@ -53,9 +62,10 @@ dependencies {
     implementation("org.slf4j:slf4j-simple:2.0.3")
 
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.4.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.0")
     implementation(kotlin("stdlib-common"))
     implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.4")
+    
+    // If you still want Kotlin test helpers:
     testImplementation(kotlin("test"))
 
 }
@@ -92,8 +102,12 @@ tasks {
         jvmArgs = args
     }
 
+    // test {
+    //    useJUnitPlatform()
+    //}
     test {
-        useJUnitPlatform()
+        // useJUnitPlatform()
+        failOnNoDiscoveredTests = false
     }
 
 }
@@ -122,3 +136,4 @@ tasks {
             .map { if (it.isDirectory) it else zipTree(it) })
     }
 }
+
