@@ -271,7 +271,7 @@ class databaseToCSV():
         with open (csv_filename, 'w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile)
             csv_writer.writerow(['Instance Name', 'Number of Vehicles', 'minmax cost', 'minmaxCOF', 'minmax eps', 'minmax delta',
-                                 'epsFair cost', 'epsFair COF', 'deltaFair cost', 'deltaFair COF' ])
+                                 'epsFair cost', 'epsFair COF', 'epsFair time factor', 'deltaFair cost', 'deltaFair COF', 'deltaFair time factor' ])
 
             data = []
             data_path = get_data_path()
@@ -293,11 +293,21 @@ class databaseToCSV():
                     if objective == 'eps-fair':
                         fc = round(floor(float(minmax_fairnessIndex['normIndex'])*10000)/10000,4)
                         cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
-                        data.extend([cost, round((cost-min_cost)/min_cost, 3)])
+                        time = self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
+                        if float(time) < 3600.0:
+                            time_factor = float(comp_time)/float(time)
+                            data.extend([cost, round((cost-min_cost)/min_cost, 3), round(time_factor, 2)])
+                        else:
+                            data.extend(['-', '-', '-'])
                     if objective == 'delta-fair':
                         fc = round(ceil(float(minmax_fairnessIndex['giniIndex'])*10000)/10000,4)
                         cost = self._getSumofTours(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
-                        data.extend([cost, round((cost-min_cost)/min_cost, 3)])
+                        time = self._getComputationTime(instance_name=instance_name, objective=objective, numVehicles=numVehicle, fc=fc)
+                        if float(time) < 3600.0:
+                            time_factor = float(comp_time)/float(time)
+                            data.extend([cost, round((cost-min_cost)/min_cost, 3), round(time_factor, 2)])
+                        else:
+                            data.extend(['-', '-', '-'])
 
                 csv_writer.writerow(data)
 
