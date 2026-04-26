@@ -6,10 +6,10 @@ import os
 import re
 import shutil
 import subprocess
-import numpy as np
 from math import floor, ceil
 
 log = logging.getLogger(__name__)
+import numpy as np
 
 class ScriptException(Exception):
     """Custom exception class with message for this module."""
@@ -60,8 +60,8 @@ def get_all_instance_vehicle_pairs(data_path: str = None):
     if data_path is None:
         data_path = get_data_path()
     
-    tsp_instances = ['att48.tsp', 'bayg29.tsp', 'bays29.tsp', 'burma14.tsp', 'eil51.tsp', 'eil76.tsp', 'dantzig42.tsp', 
-                    'fri26.tsp', 'gr17.tsp', 'gr21.tsp', 'gr24.tsp', 'gr48.tsp']
+    tsp_instances = ['burma14.tsp', 'gr17.tsp', 'gr21.tsp', 'gr24.tsp', 'fri26.tsp', 'bayg29.tsp',
+                    'bays29.tsp', 'dantzig42.tsp', 'gr48.tsp', 'att48.tsp', 'eil51.tsp', 'eil76.tsp']
     vehicles_count = [3,4,5]
     
     # VRP instances - extract vehicle count from filename
@@ -74,6 +74,8 @@ def get_all_instance_vehicle_pairs(data_path: str = None):
             if match:
                 vehicle_count = int(match.group(1))
                 vrp_cases.append((filename, vehicle_count))
+
+    vrp_cases.sort(key=lambda x: x[0])
     
     return [(instance, vehicle) for instance in tsp_instances for vehicle in vehicles_count] + vrp_cases
 
